@@ -9,7 +9,7 @@ module.exports = {
         '^@store/(.*)$': '<rootDir>/src/store/$1',
         '^@hooks/(.*)$': '<rootDir>/src/hooks/$1',
         '^@utils/(.*)$': '<rootDir>/src/utils/$1',
-        '^@constants/(.*)$': '<rootDir>/src/constants/$1',
+        '^@constants/(.*)$': '<rootDir>/constants/$1',
         '^@types$': '<rootDir>/src/types/index.ts',
         '^@domain/(.*)$': '<rootDir>/src/domain/$1',
         '^@infrastructure/(.*)$': '<rootDir>/src/infrastructure/$1',

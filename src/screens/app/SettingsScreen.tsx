@@ -4,7 +4,7 @@ import { useThemeColors } from '@hooks/useThemeColors';
 import { authService, familyService, userService } from '@src/firebase';
 import firebase from '@src/firebase/config/firebase.config';
 import { useUserStore } from '@store/userStore';
-import { fontSize, fontWeight, spacing } from '@styles/spacing';
+import { borderRadius, cardShadow, fontSize, fontWeight, spacing } from '@styles/spacing';
 import type { Family } from '@types';
 import { GoogleSignin, statusCodes } from '@utils/googleSignin';
 import * as Clipboard from 'expo-clipboard';
@@ -399,11 +399,9 @@ export default function SettingsScreen({ navigation }: any) {
             onPress={() => navigation.navigate('Approvals')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={24}
-                color={colors.primary}
-              />
+              <View style={[styles.settingIconBadge, { backgroundColor: colors.primary }]}>
+                <Ionicons name="shield-checkmark-outline" size={18} color="#FFF" />
+              </View>
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingLabel}>{t('settings.approvals')}</Text>
                 <Text style={styles.settingValue}>{t('settings.manage_requests', 'Gerenciar solicitações')}</Text>
@@ -417,11 +415,9 @@ export default function SettingsScreen({ navigation }: any) {
           </TouchableOpacity>
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
-              <Ionicons
-                name="people-outline"
-                size={24}
-                color={colors.primary}
-              />
+              <View style={[styles.settingIconBadge, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="people-outline" size={18} color="#FFF" />
+              </View>
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingLabel}>{t('common.family', 'Família')}: {family?.name || t('common.loading')}</Text>
                 <Text style={styles.settingValue}>{t('common.code', 'Código')}: {family?.code || '...'}</Text>
@@ -437,11 +433,9 @@ export default function SettingsScreen({ navigation }: any) {
             onPress={() => navigation.navigate('FamilyMembers')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons
-                name="people-circle-outline"
-                size={24}
-                color={colors.primary}
-              />
+              <View style={[styles.settingIconBadge, { backgroundColor: colors.primary }]}>
+                <Ionicons name="people-circle-outline" size={18} color="#FFF" />
+              </View>
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingLabel}>{t('settings.manage_members')}</Text>
                 <Text style={styles.settingValue}>{t('settings.view_list', 'Ver lista e permissões')}</Text>
@@ -460,11 +454,9 @@ export default function SettingsScreen({ navigation }: any) {
             onPress={() => setShowChangeFamilyModal(true)}
           >
             <View style={styles.settingLeft}>
-              <Ionicons
-                name="swap-horizontal-outline"
-                size={24}
-                color={colors.primary}
-              />
+              <View style={[styles.settingIconBadge, { backgroundColor: colors.warning }]}>
+                <Ionicons name="swap-horizontal-outline" size={18} color="#FFF" />
+              </View>
               <View style={styles.settingTextContainer}>
                 <Text style={styles.settingLabel}>{t('settings.change_family')}</Text>
                 <Text style={styles.settingValue}>{t('settings.change_family_desc')}</Text>
@@ -489,7 +481,9 @@ export default function SettingsScreen({ navigation }: any) {
           onPress={() => setShowThemePicker(true)}
         >
           <View style={styles.settingLeft}>
-            <Ionicons name="sunny" size={24} color={colors.primary} />
+            <View style={[styles.settingIconBadge, { backgroundColor: colors.warning }]}>
+              <Ionicons name="sunny" size={18} color="#FFF" />
+            </View>
             <View style={styles.settingTextContainer}>
               <Text style={styles.settingLabel}>{t('settings.theme')}</Text>
               <Text style={styles.settingValue}>{getThemeLabel()}</Text>
@@ -508,11 +502,9 @@ export default function SettingsScreen({ navigation }: any) {
           onPress={() => setShowLanguagePicker(true)}
         >
           <View style={styles.settingLeft}>
-            <Ionicons
-              name="language-outline"
-              size={24}
-              color={colors.primary}
-            />
+            <View style={[styles.settingIconBadge, { backgroundColor: colors.info }]}>
+              <Ionicons name="language-outline" size={18} color="#FFF" />
+            </View>
             <View style={styles.settingTextContainer}>
               <Text style={styles.settingLabel}>{t('settings.language')}</Text>
               <Text style={styles.settingValue}>{getLanguageLabel()}</Text>
@@ -528,11 +520,9 @@ export default function SettingsScreen({ navigation }: any) {
         {/* Notifications */}
         <View style={styles.settingRow}>
           <View style={styles.settingLeft}>
-            <Ionicons
-              name="notifications-outline"
-              size={24}
-              color={colors.primary}
-            />
+            <View style={[styles.settingIconBadge, { backgroundColor: colors.primary }]}>
+              <Ionicons name="notifications-outline" size={18} color="#FFF" />
+            </View>
             <View style={styles.settingTextContainer}>
               <Text style={styles.settingLabel}>{t('settings.notifications')}</Text>
               <Text style={styles.settingValue}>
@@ -557,11 +547,9 @@ export default function SettingsScreen({ navigation }: any) {
           onPress={() => navigation.navigate('ManageCategories')}
         >
           <View style={styles.settingLeft}>
-            <Ionicons
-              name="pricetags-outline"
-              size={24}
-              color={colors.primary}
-            />
+            <View style={[styles.settingIconBadge, { backgroundColor: colors.primary }]}>
+              <Ionicons name="pricetags-outline" size={18} color="#FFF" />
+            </View>
             <View style={styles.settingTextContainer}>
               <Text style={styles.settingLabel}>{t('settings.manage_categories')}</Text>
               <Text style={styles.settingValue}>{t('settings.manage_categories_desc')}</Text>
@@ -580,11 +568,9 @@ export default function SettingsScreen({ navigation }: any) {
         <Text style={styles.sectionTitle}>{t('settings.about')}</Text>
         <View style={styles.settingRow}>
           <View style={styles.settingLeft}>
-            <Ionicons
-              name="information-circle-outline"
-              size={24}
-              color={colors.primary}
-            />
+            <View style={[styles.settingIconBadge, { backgroundColor: colors.textSecondary }]}>
+              <Ionicons name="information-circle-outline" size={18} color="#FFF" />
+            </View>
             <View style={styles.settingTextContainer}>
               <Text style={styles.settingLabel}>{t('settings.version')}</Text>
               <Text style={styles.settingValue}>1.0.0</Text>
@@ -743,22 +729,23 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   section: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingTop: spacing.lg,
   },
   sectionTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
     marginBottom: spacing.md,
   },
   profileBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: borderRadius.xl,
     padding: spacing.md,
+    ...cardShadow,
   },
   avatarContainer: {
     marginRight: spacing.md,
@@ -785,17 +772,17 @@ const makeStyles = (colors: any) => StyleSheet.create({
   linkButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
+    padding: spacing.sm,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
+    borderRadius: borderRadius.lg,
     gap: 8,
     justifyContent: 'center',
   },
   linkText: {
     color: colors.primary,
-    fontWeight: '600'
+    fontWeight: fontWeight.semibold,
   },
   linkButtonsRow: {
     flexDirection: 'row',
@@ -807,15 +794,23 @@ const makeStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: borderRadius.xl,
     padding: spacing.md,
     marginBottom: spacing.md,
+    ...cardShadow,
   },
   settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
     gap: spacing.md,
+  },
+  settingIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   settingTextContainer: {
     flex: 1,
@@ -836,8 +831,9 @@ const makeStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.md,
-    borderRadius: 12,
+    borderRadius: borderRadius.xl,
     gap: spacing.md,
+    ...cardShadow,
   },
   logoutText: {
     color: '#FFF',
@@ -853,7 +849,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   modalContent: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: borderRadius.xxl,
     padding: spacing.xl,
     width: '100%',
     maxWidth: 400,
@@ -873,10 +869,10 @@ const makeStyles = (colors: any) => StyleSheet.create({
     lineHeight: 20,
   },
   modalInput: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     fontSize: fontSize.lg,
     color: colors.text,
@@ -891,7 +887,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   modalButton: {
     flex: 1,
     paddingVertical: spacing.md,
-    borderRadius: 8,
+    borderRadius: borderRadius.lg,
     alignItems: 'center',
   },
   modalButtonCancel: {

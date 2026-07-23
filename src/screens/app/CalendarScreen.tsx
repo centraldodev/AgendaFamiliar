@@ -1,4 +1,5 @@
 import TaskItem from '@components/TaskItem';
+import { getHolidaysMap } from '@constants/holidays';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@hooks/useThemeColors';
 import { useTaskStore } from '@store/taskStore';
@@ -29,9 +30,25 @@ export default function CalendarScreen({ navigation }: any) {
   const [selectedDate, setSelectedDate] = useState(
     getTodayString() // Use timezone-safe function
   );
+  const [visibleYear, setVisibleYear] = useState(
+    () => Number(selectedDate.split('-')[0])
+  );
+
+  // Include neighboring years so holidays stay correct right at a year boundary
+  const holidaysMap = useMemo(
+    () => getHolidaysMap([visibleYear - 1, visibleYear, visibleYear + 1]),
+    [visibleYear]
+  );
 
   const markedDates = useMemo(() => {
     const marked: any = {};
+
+    Object.keys(holidaysMap).forEach((dateStr) => {
+      marked[dateStr] = {
+        marked: true,
+        dots: [{ key: 'holiday', color: colors.danger }],
+      };
+    });
 
     tasks.forEach((task) => {
       const dateStr = task.dueDate;
@@ -52,11 +69,12 @@ export default function CalendarScreen({ navigation }: any) {
     };
 
     return marked;
-  }, [tasks, selectedDate, colors]);
+  }, [tasks, selectedDate, colors, holidaysMap]);
 
   const selectedDateTasks = tasks.filter(
     (task) => task.dueDate === selectedDate
   );
+  const selectedHolidayName = holidaysMap[selectedDate];
 
   const handleEditTask = (task: Task) => {
     navigation.navigate('AddEdit', { taskId: task.id });
@@ -74,7 +92,9 @@ export default function CalendarScreen({ navigation }: any) {
             key={preferences.theme} // Force re-render on theme change
             current={selectedDate}
             markedDates={markedDates}
+            markingType="multi-dot"
             onDayPress={(day: any) => setSelectedDate(day.dateString)}
+            onMonthChange={(month: any) => setVisibleYear(month.year)}
             monthFormat={'MMMM yyyy'}
             hideArrows={false}
             hideDayNames={false}
@@ -121,22 +141,33 @@ export default function CalendarScreen({ navigation }: any) {
               })()}
             </Text>
             <TouchableOpacity
-              style={styles.addButton}
+              style={[styles.addButton, { backgroundColor: colors.primary }]}
               onPress={() => navigation.navigate('AddEdit', { initialDate: selectedDate })}
               accessibilityLabel={t('tasks.add_task', 'Adicionar tarefa')}
               accessibilityRole="button"
             >
-              <Ionicons name="add-circle" size={28} color={colors.primary} />
+              <Ionicons name="add" size={20} color="#FFF" />
             </TouchableOpacity>
           </View>
 
+          {selectedHolidayName && (
+            <View style={[styles.holidayBadge, { backgroundColor: colors.danger + '1A' }]}>
+              <Ionicons name="star" size={16} color={colors.danger} />
+              <Text style={[styles.holidayText, { color: colors.danger }]}>
+                {t('calendar.holiday', 'Feriado')}: {selectedHolidayName}
+              </Text>
+            </View>
+          )}
+
           {selectedDateTasks.length === 0 ? (
             <View style={styles.emptyTasks}>
-              <Ionicons
-                name="checkmark-done-outline"
-                size={48}
-                color={colors.textSecondary}
-              />
+              <View style={[styles.emptyIconBadge, { backgroundColor: colors.backgroundSecondary }]}>
+                <Ionicons
+                  name="checkmark-done-outline"
+                  size={40}
+                  color={colors.textSecondary}
+                />
+              </View>
               <Text style={styles.emptyText}>{t('calendar.no_tasks_day')}</Text>
             </View>
           ) : (

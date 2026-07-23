@@ -193,6 +193,7 @@
     },
     "calendar": {
         "title": "Calendário",
-        "no_tasks_day": "Nenhuma tarefa neste dia"
+        "no_tasks_day": "Nenhuma tarefa neste dia",
+        "holiday": "Feriado"
     }
 }

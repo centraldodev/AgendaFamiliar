@@ -1,4 +1,4 @@
-import { fontSize, spacing } from '@styles/spacing';
+import { borderRadius, cardShadow, fontSize, fontWeight, spacing } from '@styles/spacing';
 import { StyleSheet } from 'react-native';
 
 export const createStyles = (colors: any) =>
@@ -8,20 +8,22 @@ export const createStyles = (colors: any) =>
             backgroundColor: colors.background,
         },
         scrollContent: {
-            paddingBottom: spacing.xl,
+            padding: spacing.lg,
+            paddingBottom: spacing.xxl,
         },
         calendarContainer: {
             backgroundColor: colors.surface,
-            borderBottomWidth: 0,
-            borderBottomColor: colors.border,
-        },
-        tasksContainer: {
-            paddingHorizontal: spacing.lg,
-            paddingTop: spacing.md,
+            borderRadius: borderRadius.xl,
+            padding: spacing.sm,
+            overflow: 'hidden',
+            marginBottom: spacing.lg,
+            ...cardShadow,
         },
         tasksSection: {
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.lg,
+            backgroundColor: colors.surface,
+            borderRadius: borderRadius.xl,
+            padding: spacing.lg,
+            ...cardShadow,
         },
         tasksHeader: {
             flexDirection: 'row',
@@ -31,32 +33,47 @@ export const createStyles = (colors: any) =>
         },
         tasksTitle: {
             fontSize: fontSize.lg,
-            fontWeight: '600',
+            fontWeight: fontWeight.bold,
             color: colors.text,
             textTransform: 'capitalize',
             flex: 1,
         },
         addButton: {
-            padding: spacing.xs,
-        },
-        sectionTitle: {
-            fontSize: fontSize.lg,
-            fontWeight: '600',
-            color: colors.text,
-            marginBottom: spacing.md,
-        },
-        emptyContainer: {
-            padding: spacing.xl,
+            width: 36,
+            height: 36,
+            borderRadius: borderRadius.lg,
             alignItems: 'center',
+            justifyContent: 'center',
+        },
+        holidayBadge: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.xs,
+            alignSelf: 'flex-start',
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            borderRadius: borderRadius.xxl,
+            marginBottom: spacing.lg,
+        },
+        holidayText: {
+            fontSize: fontSize.sm,
+            fontWeight: fontWeight.semibold,
         },
         emptyTasks: {
             alignItems: 'center',
             paddingVertical: spacing.xl,
         },
+        emptyIconBadge: {
+            width: 88,
+            height: 88,
+            borderRadius: 44,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: spacing.md,
+        },
         emptyText: {
             fontSize: fontSize.base,
             color: colors.textSecondary,
             textAlign: 'center',
-            marginTop: spacing.md,
         },
     });

@@ -193,6 +193,7 @@
     },
     "calendar": {
         "title": "Calendar",
-        "no_tasks_day": "No tasks for this day"
+        "no_tasks_day": "No tasks for this day",
+        "holiday": "Holiday"
     }
 }
