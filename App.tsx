@@ -1,7 +1,7 @@
 import { useThemeColors } from '@hooks/useThemeColors';
 import RootNavigator from '@navigation/RootNavigator';
 import SplashScreen from '@screens/SplashScreen';
-import { auth, authService, notificationService, taskService } from '@src/firebase';
+import { auth, authService, notificationService, taskService, userService } from '@src/firebase';
 import { useCategoryStore } from '@store/categoryStore';
 import { useTaskStore } from '@store/taskStore';
 import { useUserStore } from '@store/userStore';
@@ -103,6 +103,34 @@ export default function App() {
       };
     }
   }, [user?.familyId]);
+
+  // Register this device's push token so the Cloud Function can notify it
+  // in background whenever another family member changes a shared task
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    notificationService.registerForPushNotificationsAsync().then((token) => {
+      if (token) {
+        userService.addPushToken(user.uid, token);
+      }
+    });
+  }, [user?.uid]);
+
+  // Reconcile local notifications when a background-sync push arrives while
+  // the app is in the foreground (the TaskManager task in index.js handles
+  // the case where the app is backgrounded/closed)
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as any;
+      if (data?.type && data?.taskId) {
+        notificationService.reconcileFromPushData(data).catch((error) => {
+          console.error('[App] Error reconciling push data:', error);
+        });
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   // Handle notification actions (Complete/Skip)
   useEffect(() => {

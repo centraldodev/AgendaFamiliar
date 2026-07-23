@@ -12,8 +12,12 @@ module.exports = {
         '^@constants/(.*)$': '<rootDir>/src/constants/$1',
         '^@types$': '<rootDir>/src/types/index.ts',
         '^@domain/(.*)$': '<rootDir>/src/domain/$1',
+        '^@infrastructure/(.*)$': '<rootDir>/src/infrastructure/$1',
         // Mock native modules
         '^expo-notifications$': '<rootDir>/src/__mocks__/expo-notifications.ts',
+        '^expo-constants$': '<rootDir>/src/__mocks__/expo-constants.ts',
+        '^expo-background-fetch$': '<rootDir>/src/__mocks__/expo-background-fetch.ts',
+        '^expo-task-manager$': '<rootDir>/src/__mocks__/expo-task-manager.ts',
         '^react-native$': '<rootDir>/src/__mocks__/react-native.ts',
         '^@react-native-async-storage/async-storage$': '<rootDir>/src/__mocks__/async-storage.ts',
     },

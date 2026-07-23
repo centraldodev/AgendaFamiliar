@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@hooks/useThemeColors';
-import { fontSize, spacing } from '@styles/spacing';
+import { borderRadius, cardShadow, fontSize, fontWeight, spacing } from '@styles/spacing';
 import { formatDate } from '@utils/dateUtils';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -97,10 +97,13 @@ export const TaskDateTime: React.FC<TaskDateTimeProps> = ({
   // Web version with native HTML inputs
   if (Platform.OS === 'web') {
     return (
-      <View style={styles.section}>
-        <Text style={[styles.label, { color: colors.text }]}>{t('tasks.due_date')} *</Text>
-        <View style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+      <View style={[styles.section, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
+          {t('tasks.due_date')}
+          <Text style={{ color: colors.danger }}> *</Text>
+        </Text>
+        <View style={[styles.dateButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+          <Ionicons name="calendar-outline" size={18} color={colors.primary} />
           <input
             type="date"
             value={formatDateForInput(dueDate)}
@@ -118,10 +121,12 @@ export const TaskDateTime: React.FC<TaskDateTimeProps> = ({
           />
         </View>
 
-        <Text style={[styles.label, { color: colors.text }]}>{t('tasks.due_time')} ({t('common.optional', 'Opcional')})</Text>
+        <Text style={[styles.label, styles.secondLabel, { color: colors.textSecondary }]}>
+          {t('tasks.due_time')} ({t('common.optional', 'Opcional')})
+        </Text>
         <View style={styles.timeRow}>
-          <View style={[styles.dateButton, styles.timeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Ionicons name="time-outline" size={20} color={colors.primary} />
+          <View style={[styles.dateButton, styles.timeButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
+            <Ionicons name="time-outline" size={18} color={colors.primary} />
             <input
               type="time"
               value={formatTimeForInput(dueTime)}
@@ -141,7 +146,7 @@ export const TaskDateTime: React.FC<TaskDateTimeProps> = ({
 
           {dueTime && (
             <TouchableOpacity onPress={clearTime} style={styles.clearButton}>
-              <Ionicons name="close-circle" size={24} color={colors.danger} />
+              <Ionicons name="close-circle" size={22} color={colors.danger} />
             </TouchableOpacity>
           )}
         </View>
@@ -151,13 +156,16 @@ export const TaskDateTime: React.FC<TaskDateTimeProps> = ({
 
   // Native version with DateTimePicker
   return (
-    <View style={styles.section}>
-      <Text style={[styles.label, { color: colors.text }]}>{t('tasks.due_date')} *</Text>
+    <View style={[styles.section, { backgroundColor: colors.surface }]}>
+      <Text style={[styles.label, { color: colors.textSecondary }]}>
+        {t('tasks.due_date')}
+        <Text style={{ color: colors.danger }}> *</Text>
+      </Text>
       <TouchableOpacity
-        style={[styles.dateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        style={[styles.dateButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
         onPress={() => setShowDatePicker(true)}
       >
-        <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+        <Ionicons name="calendar-outline" size={18} color={colors.primary} />
         <Text style={[styles.dateText, { color: colors.text }]}>
           {formatDate(dueDate)}
         </Text>
@@ -172,13 +180,15 @@ export const TaskDateTime: React.FC<TaskDateTimeProps> = ({
         />
       )}
 
-      <Text style={[styles.label, { color: colors.text }]}>{t('tasks.due_time')} ({t('common.optional', 'Opcional')})</Text>
+      <Text style={[styles.label, styles.secondLabel, { color: colors.textSecondary }]}>
+        {t('tasks.due_time')} ({t('common.optional', 'Opcional')})
+      </Text>
       <View style={styles.timeRow}>
         <TouchableOpacity
-          style={[styles.dateButton, styles.timeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[styles.dateButton, styles.timeButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
           onPress={() => setShowTimePicker(true)}
         >
-          <Ionicons name="time-outline" size={20} color={colors.primary} />
+          <Ionicons name="time-outline" size={18} color={colors.primary} />
           <Text style={[styles.dateText, { color: colors.text }]}>
             {dueTime
               ? `${String(dueTime.getHours()).padStart(2, '0')}:${String(dueTime.getMinutes()).padStart(2, '0')}`
@@ -188,7 +198,7 @@ export const TaskDateTime: React.FC<TaskDateTimeProps> = ({
 
         {dueTime && (
           <TouchableOpacity onPress={clearTime} style={styles.clearButton}>
-            <Ionicons name="close-circle" size={24} color={colors.danger} />
+            <Ionicons name="close-circle" size={22} color={colors.danger} />
           </TouchableOpacity>
         )}
       </View>
@@ -207,23 +217,31 @@ export const TaskDateTime: React.FC<TaskDateTimeProps> = ({
 
 const styles = StyleSheet.create({
   section: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
     marginBottom: spacing.lg,
+    ...cardShadow,
   },
   label: {
-    fontSize: fontSize.base,
-    fontWeight: '600',
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
     marginBottom: spacing.sm,
+  },
+  secondLabel: {
+    marginTop: spacing.md,
   },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
-    marginBottom: spacing.md,
   },
   dateText: {
     fontSize: fontSize.base,
+    fontWeight: fontWeight.medium,
     marginLeft: spacing.sm,
   },
   timeRow: {

@@ -90,6 +90,8 @@ export default function ManageCategoriesScreen({ navigation }: any) {
         setEditingCategory(null);
     };
 
+    const isAdmin = user?.role === 'admin';
+
     const renderCategory = ({ item }: { item: Category }) => {
         const isCustom = !item.isDefault;
 
@@ -118,7 +120,7 @@ export default function ManageCategoriesScreen({ navigation }: any) {
                     </View>
                 </View>
 
-                {isCustom && (
+                {isCustom && isAdmin && (
                     <View style={styles.categoryActions}>
                         <TouchableOpacity
                             onPress={() => handleEditCategory(item)}

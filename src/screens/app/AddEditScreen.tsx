@@ -11,9 +11,9 @@ import { useThemeColors } from '@hooks/useThemeColors';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCategoryStore } from '@store/categoryStore';
 import { useUserStore } from '@store/userStore';
-import { fontSize, spacing } from '@styles/spacing';
+import { borderRadius, cardShadow, fontSize, fontWeight, spacing } from '@styles/spacing';
 import type { RecurrenceType } from '@types';
-import { getCategoryColor, getCategoryLabel } from '@utils/taskUtils';
+import { getCategoryColor, getCategoryIcon, getCategoryLabel } from '@utils/taskUtils';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -84,27 +84,65 @@ export default function AddEditScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-          <Ionicons name="close" size={24} color={colors.text} />
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.headerButton, { backgroundColor: colors.backgroundSecondary }]}
+          accessibilityLabel={t('common.cancel')}
+          accessibilityRole="button"
+        >
+          <Ionicons name="close" size={22} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
+        <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
           {taskId ? t('tasks.edit_task') : t('tasks.add_task')}
         </Text>
-        <TouchableOpacity
-          onPress={handleSave}
-          style={styles.headerButton}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Ionicons name="checkmark" size={24} color={colors.primary} />
+        <View style={styles.headerRightGroup}>
+          {user?.familyId && (
+            <TouchableOpacity
+              onPress={() => setIsPrivate(!isPrivate)}
+              style={[
+                styles.headerButton,
+                { backgroundColor: isPrivate ? colors.primary : colors.backgroundSecondary },
+              ]}
+              accessibilityLabel={
+                isPrivate
+                  ? t('tasks.private_task_on', 'Tarefa privada ativada')
+                  : t('tasks.private_task_off', 'Tarefa privada desativada')
+              }
+              accessibilityRole="switch"
+              accessibilityState={{ checked: isPrivate }}
+            >
+              <Ionicons
+                name={isPrivate ? 'lock-closed' : 'lock-open-outline'}
+                size={20}
+                color={isPrivate ? '#FFF' : colors.textSecondary}
+              />
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleSave}
+            style={[
+              styles.saveButton,
+              { backgroundColor: colors.primary, opacity: loading ? 0.6 : 1 },
+            ]}
+            disabled={loading}
+            accessibilityLabel={t('common.save')}
+            accessibilityRole="button"
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Ionicons name="checkmark" size={22} color="#FFF" />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {/* 1. Title and Description */}
         <TaskBasicInfo
           title={title}
@@ -129,37 +167,44 @@ export default function AddEditScreen({ route, navigation }: any) {
         />
 
         {/* 4. Category Selection */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>{t('tasks.category')} *</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>
+            {t('tasks.category')}
+            <Text style={{ color: colors.danger }}> *</Text>
+          </Text>
           <TouchableOpacity
-            style={[styles.categoryButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[styles.selectorButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
             onPress={() => setShowCategoryPicker(true)}
           >
             <View
               style={[
-                styles.categoryDot,
+                styles.iconBadge,
                 { backgroundColor: getCategoryColor(category, categories) },
               ]}
-            />
-            <Text style={[styles.categoryText, { color: colors.text }]}>
+            >
+              <Ionicons name={getCategoryIcon(category, categories) as any} size={16} color="#FFF" />
+            </View>
+            <Text style={[styles.selectorText, { color: colors.text }]}>
               {getCategoryLabel(category, categories)}
             </Text>
-            <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+            <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
         {/* 5. Recurrence Selection */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.text }]}>{t('tasks.recurrence')}</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>{t('tasks.recurrence')}</Text>
           <TouchableOpacity
-            style={[styles.recurrenceButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[styles.selectorButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
             onPress={() => setShowRecurrencePicker(true)}
           >
-            <Ionicons name="repeat-outline" size={20} color={colors.primary} />
-            <Text style={[styles.recurrenceText, { color: colors.text }]}>
+            <View style={[styles.iconBadge, { backgroundColor: colors.primary }]}>
+              <Ionicons name="repeat-outline" size={16} color="#FFF" />
+            </View>
+            <Text style={[styles.selectorText, { color: colors.text }]}>
               {t(`recurrence.${recurrence}`, { defaultValue: RECURRENCE_LABELS[recurrence] })}
             </Text>
-            <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+            <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
 
           {/* Show WeekDaysPicker when custom_weekly is selected */}
@@ -173,10 +218,12 @@ export default function AddEditScreen({ route, navigation }: any) {
           {/* Recurrence End Date */}
           {recurrence !== 'none' && (
             <View style={styles.endDateContainer}>
-              <View style={styles.endDateToggle}>
-                <View style={styles.endDateLeft}>
-                  <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-                  <Text style={[styles.endDateLabel, { color: colors.text }]}>
+              <View style={[styles.settingsRow, { backgroundColor: colors.backgroundSecondary }]}>
+                <View style={styles.settingsRowLeft}>
+                  <View style={[styles.iconBadge, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="calendar-outline" size={16} color="#FFF" />
+                  </View>
+                  <Text style={[styles.settingsRowLabel, { color: colors.text }]}>
                     {t('tasks.ends_on')}
                   </Text>
                 </View>
@@ -196,7 +243,7 @@ export default function AddEditScreen({ route, navigation }: any) {
               </View>
               {hasEndDate && (
                 Platform.OS === 'web' ? (
-                  <View style={[styles.endDateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={[styles.endDateButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
                     <input
                       type="date"
                       value={recurrenceEndDate
@@ -223,7 +270,7 @@ export default function AddEditScreen({ route, navigation }: any) {
                   </View>
                 ) : (
                   <TouchableOpacity
-                    style={[styles.endDateButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                    style={[styles.endDateButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
                     onPress={() => setShowEndDatePicker(true)}
                   >
                     <Text style={[styles.endDateText, { color: colors.text }]}>
@@ -252,33 +299,6 @@ export default function AddEditScreen({ route, navigation }: any) {
           )}
         </View>
 
-        {/* 6. Private Task Toggle - Last option, only show if user has a family */}
-        {user?.familyId && (
-          <View style={styles.section}>
-            <View style={styles.privateToggleContainer}>
-              <View style={styles.privateToggleLeft}>
-                <Ionicons name="lock-closed-outline" size={20} color={colors.primary} />
-                <View style={styles.privateToggleText}>
-                  <Text style={[styles.label, { color: colors.text, marginBottom: 2 }]}>
-                    {t('tasks.private_task')}
-                  </Text>
-                  <Text style={[styles.privateToggleDescription, { color: colors.textSecondary }]}>
-                    {t('tasks.private_task_desc')}
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={isPrivate}
-                onValueChange={setIsPrivate}
-                trackColor={{
-                  false: colors.border,
-                  true: colors.primary,
-                }}
-                thumbColor="#FFF"
-              />
-            </View>
-          </View>
-        )}
       </ScrollView>
 
       {/* Modals */}
@@ -292,6 +312,7 @@ export default function AddEditScreen({ route, navigation }: any) {
           color: cat.color,
           icon: cat.icon,
         }))}
+        selectedValue={category}
         onSelect={(value: string) => {
           setCategory(value);
         }}
@@ -303,6 +324,7 @@ export default function AddEditScreen({ route, navigation }: any) {
         onClose={() => setShowRecurrencePicker(false)}
         title={t('tasks.select_recurrence')}
         options={getRecurrenceOptions(t)}
+        selectedValue={recurrence}
         onSelect={(value: string) => {
           setRecurrence(value as RecurrenceType);
         }}
@@ -331,107 +353,105 @@ const makeStyles = (colors: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: spacing.md,
+      paddingHorizontal: spacing.lg,
       paddingVertical: spacing.md,
-      borderBottomWidth: 1,
+      ...cardShadow,
     },
     headerButton: {
       width: 40,
       height: 40,
+      borderRadius: borderRadius.xl,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    saveButton: {
+      width: 40,
+      height: 40,
+      borderRadius: borderRadius.xl,
       alignItems: 'center',
       justifyContent: 'center',
     },
     headerTitle: {
-      fontSize: fontSize.xl,
-      fontWeight: 'bold',
+      flex: 1,
+      textAlign: 'center',
+      fontSize: fontSize.lg,
+      fontWeight: fontWeight.bold,
+    },
+    headerRightGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
     },
     content: {
       flex: 1,
-      padding: spacing.lg,
     },
-    section: {
+    contentContainer: {
+      padding: spacing.lg,
+      paddingTop: spacing.xl,
+      paddingBottom: spacing.xxl,
+    },
+    // Shared "floating card" look used by every section on this screen
+    card: {
+      borderRadius: borderRadius.xl,
+      padding: spacing.lg,
       marginBottom: spacing.lg,
+      ...cardShadow,
     },
     label: {
-      fontSize: fontSize.base,
-      fontWeight: '600',
+      fontSize: fontSize.sm,
+      fontWeight: fontWeight.semibold,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
       marginBottom: spacing.sm,
     },
-    categoryButton: {
-      flexDirection: 'row',
+    iconBadge: {
+      width: 28,
+      height: 28,
+      borderRadius: borderRadius.lg,
       alignItems: 'center',
-      borderWidth: 1,
-      borderRadius: 8,
-      padding: spacing.md,
-    },
-    categoryDot: {
-      width: 12,
-      height: 12,
-      borderRadius: 6,
+      justifyContent: 'center',
       marginRight: spacing.sm,
     },
-    categoryText: {
-      flex: 1,
-      fontSize: fontSize.base,
-    },
-    recurrenceButton: {
+    // Shared selector button (category / recurrence) styling
+    selectorButton: {
       flexDirection: 'row',
       alignItems: 'center',
       borderWidth: 1,
-      borderRadius: 8,
+      borderRadius: borderRadius.lg,
       padding: spacing.md,
     },
-    recurrenceText: {
+    selectorText: {
       flex: 1,
       fontSize: fontSize.base,
-      marginLeft: spacing.sm,
+      fontWeight: fontWeight.medium,
     },
-    privateToggleContainer: {
+    // Shared settings-style row (toggles with icon + title + description)
+    settingsRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      backgroundColor: colors.surface,
-      borderRadius: 8,
+      borderRadius: borderRadius.lg,
       padding: spacing.md,
     },
-    privateToggleLeft: {
+    settingsRowLeft: {
       flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
-      gap: spacing.sm,
+      marginRight: spacing.sm,
     },
-    privateToggleText: {
-      flex: 1,
-    },
-    privateToggleDescription: {
-      fontSize: fontSize.sm,
+    settingsRowLabel: {
+      fontSize: fontSize.base,
+      fontWeight: fontWeight.semibold,
     },
     endDateContainer: {
       marginTop: spacing.md,
-    },
-    endDateToggle: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      backgroundColor: colors.surface,
-      borderRadius: 8,
-      padding: spacing.md,
-    },
-    endDateLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    endDateLabel: {
-      fontSize: fontSize.base,
-      fontWeight: '500',
     },
     endDateButton: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       borderWidth: 1,
-      borderRadius: 8,
+      borderRadius: borderRadius.lg,
       padding: spacing.md,
       marginTop: spacing.sm,
     },

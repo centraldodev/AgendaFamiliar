@@ -1,7 +1,8 @@
-export const parseDateLocal = (dateStr: string): Date => {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day);
-};
+import { parseDateString } from './dateParser';
+
+// Alias kept for backwards compatibility - dateParser.ts is the canonical
+// implementation of timezone-safe YYYY-MM-DD parsing.
+export const parseDateLocal = parseDateString;
 
 export const formatDate = (date: string | Date): string => {
   let d: Date;

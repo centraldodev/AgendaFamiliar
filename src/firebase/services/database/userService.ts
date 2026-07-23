@@ -1,5 +1,5 @@
 import type { Preferences, User } from '@types';
-import { firestore } from '../../config/firebase.config';
+import firebase, { firestore } from '../../config/firebase.config';
 
 const USERS_COLLECTION = 'users';
 
@@ -64,6 +64,34 @@ export const userService = {
         } catch (error) {
             console.error('[UserService] Error updating preferences:', error);
             throw error;
+        }
+    },
+
+    /**
+     * Registra o token de push (Expo) deste dispositivo no perfil do usuário.
+     * Usado pelas Cloud Functions para notificar outros membros da família
+     * mesmo quando o app não está aberto.
+     */
+    async addPushToken(uid: string, token: string): Promise<void> {
+        try {
+            await firestore.collection(USERS_COLLECTION).doc(uid).update({
+                pushTokens: firebase.firestore.FieldValue.arrayUnion(token),
+            });
+        } catch (error) {
+            console.error('[UserService] Error saving push token:', error);
+        }
+    },
+
+    /**
+     * Remove o token de push deste dispositivo (ex: no logout).
+     */
+    async removePushToken(uid: string, token: string): Promise<void> {
+        try {
+            await firestore.collection(USERS_COLLECTION).doc(uid).update({
+                pushTokens: firebase.firestore.FieldValue.arrayRemove(token),
+            });
+        } catch (error) {
+            console.error('[UserService] Error removing push token:', error);
         }
     },
 };

@@ -18,6 +18,9 @@ export default {
         ios: {
             supportsTablet: true,
             bundleIdentifier: 'com.natanael.agendafamiliar',
+            infoPlist: {
+                UIBackgroundModes: ['remote-notification'],
+            },
         },
         android: {
             package: 'com.natanael.agendafamiliar',

@@ -1,5 +1,5 @@
 import { useThemeColors } from '@hooks/useThemeColors';
-import { fontSize, spacing } from '@styles/spacing';
+import { borderRadius, fontSize, fontWeight, spacing } from '@styles/spacing';
 import type { WeekDay } from '@types';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -37,7 +37,7 @@ export function WeekDaysPicker({ selectedDays, onDaysChange }: WeekDaysPickerPro
 
     return (
         <View style={styles.container}>
-            <Text style={[styles.label, { color: colors.text }]}>Repetir nos dias:</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Repetir nos dias:</Text>
             <View style={styles.daysRow}>
                 {WEEK_DAYS.map(({ day, label, fullLabel }) => {
                     const isSelected = selectedDays.includes(day);
@@ -80,11 +80,13 @@ export function WeekDaysPicker({ selectedDays, onDaysChange }: WeekDaysPickerPro
 
 const styles = StyleSheet.create({
     container: {
-        marginTop: spacing.sm,
+        marginTop: spacing.md,
     },
     label: {
         fontSize: fontSize.sm,
-        fontWeight: '500',
+        fontWeight: fontWeight.semibold,
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
         marginBottom: spacing.sm,
     },
     daysRow: {
@@ -96,13 +98,13 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: spacing.sm,
-        borderRadius: 8,
+        paddingVertical: spacing.sm + 2,
+        borderRadius: borderRadius.lg,
         borderWidth: 1,
     },
     dayText: {
         fontSize: fontSize.lg,
-        fontWeight: '600',
+        fontWeight: fontWeight.bold,
     },
     dayFullText: {
         fontSize: fontSize.xs,

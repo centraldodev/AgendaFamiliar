@@ -1,7 +1,7 @@
 import PickerModal from '@components/PickerModal';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@hooks/useThemeColors';
-import { fontSize, spacing } from '@styles/spacing';
+import { borderRadius, cardShadow, fontSize, fontWeight, spacing } from '@styles/spacing';
 import type { Subtask } from '@types';
 import { CATEGORY_OPTIONS, getCategoryColor, getCategoryLabel } from '@utils/taskUtils';
 import React, { useState } from 'react';
@@ -41,7 +41,7 @@ export const TaskSubtasks: React.FC<TaskSubtasksProps> = ({
   };
 
   const renderSubtask = ({ item }: { item: Subtask }) => (
-    <View style={[styles.subtaskItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <View style={[styles.subtaskItem, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
       <View style={styles.subtaskInfo}>
         <Text style={[styles.subtaskTitle, { color: colors.text }]}>{item.title}</Text>
         {item.category && (
@@ -58,21 +58,21 @@ export const TaskSubtasks: React.FC<TaskSubtasksProps> = ({
         )}
       </View>
       <TouchableOpacity onPress={() => onRemove(item.id)} style={styles.removeButton}>
-        <Ionicons name="trash-outline" size={20} color={colors.danger} />
+        <Ionicons name="trash-outline" size={18} color={colors.danger} />
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <View style={styles.section}>
-      <Text style={[styles.label, { color: colors.text }]}>{t('tasks.subtasks')}</Text>
+    <View style={[styles.section, { backgroundColor: colors.surface }]}>
+      <Text style={[styles.label, { color: colors.textSecondary }]}>{t('tasks.subtasks')}</Text>
 
       <View style={styles.addSubtaskContainer}>
         <TextInput
           style={[
             styles.input,
             styles.subtaskInput,
-            { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
+            { backgroundColor: colors.backgroundSecondary, color: colors.text, borderColor: colors.border },
           ]}
           value={newSubtaskTitle}
           onChangeText={setNewSubtaskTitle}
@@ -81,7 +81,7 @@ export const TaskSubtasks: React.FC<TaskSubtasksProps> = ({
         />
 
         <TouchableOpacity
-          style={[styles.categoryButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[styles.categoryButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
           onPress={() => setShowCategoryPicker(true)}
         >
           <Text style={[styles.categoryButtonText, { color: newSubtaskCategory ? colors.text : colors.textSecondary }]}>
@@ -92,8 +92,10 @@ export const TaskSubtasks: React.FC<TaskSubtasksProps> = ({
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: colors.primary }]}
           onPress={handleAdd}
+          accessibilityLabel={t('tasks.new_subtask')}
+          accessibilityRole="button"
         >
-          <Ionicons name="add" size={24} color="#fff" />
+          <Ionicons name="add" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -112,6 +114,7 @@ export const TaskSubtasks: React.FC<TaskSubtasksProps> = ({
         onClose={() => setShowCategoryPicker(false)}
         title={t('tasks.select_category')}
         options={CATEGORY_OPTIONS}
+        selectedValue={newSubtaskCategory}
         onSelect={(value: string) => {
           setNewSubtaskCategory(value);
         }}
@@ -122,11 +125,16 @@ export const TaskSubtasks: React.FC<TaskSubtasksProps> = ({
 
 const styles = StyleSheet.create({
   section: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
     marginBottom: spacing.lg,
+    ...cardShadow,
   },
   label: {
-    fontSize: fontSize.base,
-    fontWeight: '600',
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
     marginBottom: spacing.sm,
   },
   addSubtaskContainer: {
@@ -136,7 +144,7 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     fontSize: fontSize.base,
   },
@@ -146,7 +154,7 @@ const styles = StyleSheet.create({
   },
   categoryButton: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginRight: spacing.sm,
   },
@@ -156,7 +164,7 @@ const styles = StyleSheet.create({
   addButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: borderRadius.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -169,7 +177,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: spacing.md,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: borderRadius.lg,
     marginBottom: spacing.sm,
   },
   subtaskInfo: {
@@ -183,11 +191,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    borderRadius: 4,
+    borderRadius: borderRadius.sm,
   },
   categoryText: {
     fontSize: fontSize.xs,
-    fontWeight: '600',
+    fontWeight: fontWeight.semibold,
   },
   removeButton: {
     padding: spacing.sm,

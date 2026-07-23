@@ -1,5 +1,5 @@
 import { useThemeColors } from '@hooks/useThemeColors';
-import { familyService } from '@src/firebase';
+import { authService, familyService } from '@src/firebase';
 import { useUserStore } from '@store/userStore';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,11 +26,6 @@ export default function FamilySetupScreen() {
         setLoading(true);
         try {
             await familyService.createFamily(name, user);
-            // User store update is handled by userService/authService? 
-            // No, familyService updates Firestore. We need to update local store too or reload profile.
-            // For simplicity, we can manually update local user store here or trigger reload.
-            // Actually, familyService updates Firestore. We should re-fetch profile to sync local store.
-            const { authService } = require('@services/authService'); // Avoid cycle?
             await authService.reloadUserProfile();
         } catch (error) {
             Alert.alert(t('common.error'), t('family.create_error'));
@@ -49,7 +44,6 @@ export default function FamilySetupScreen() {
         setLoading(true);
         try {
             await familyService.joinFamily(code, user);
-            const { authService } = require('@services/authService');
             await authService.reloadUserProfile();
         } catch (error) {
             Alert.alert(t('common.error'), t('family.join_error'));

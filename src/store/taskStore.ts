@@ -1,7 +1,7 @@
 import { RecurrenceCalculator } from "@domain/services/RecurrenceCalculator";
 import { familyService, notificationService, taskService } from "@src/firebase";
 import { useUserStore } from "@store/userStore";
-import type { Task } from "@types";
+import type { Subtask, Task } from "@types";
 import { showAlert } from "@utils/alertUtils";
 import {
     convertTaskToPrivate,
@@ -9,6 +9,131 @@ import {
     filterVisibleTasks,
 } from "@utils/taskPermissions";
 import { create } from "zustand";
+
+/**
+ * Closes the current occurrence of a recurring task (marks it completed, keeping it
+ * as a historical record) and opens a new task for the next occurrence with all
+ * subtasks reset to incomplete. Stops recurrence entirely if recurrenceEndDate is reached.
+ */
+async function spawnNextRecurringOccurrence(
+  task: Task,
+  closingSubtasks: Subtask[],
+  set: (fn: (state: TaskStore) => Partial<TaskStore>) => void,
+): Promise<void> {
+  const user = useUserStore.getState().user;
+
+  await notificationService.cancelTaskNotifications(task.notificationIds);
+
+  const nextDate = RecurrenceCalculator.calculateNextDate(
+    task.dueDate,
+    task.recurrence,
+    task.weekDays,
+  );
+
+  // Close current occurrence - keep it as a completed historical record
+  await taskService.updateTask(task.id, {
+    completed: true,
+    subtasks: closingSubtasks,
+  });
+
+  set((state) => {
+    const newMap = { ...state.localNotificationMap };
+    delete newMap[task.id];
+    return { localNotificationMap: newMap };
+  });
+
+  if (task.recurrenceEndDate && nextDate > task.recurrenceEndDate) {
+    console.log(
+      "[TaskStore] Recurrence end date reached, not creating next occurrence",
+    );
+    return;
+  }
+
+  const newTask = await taskService.createTask({
+    title: task.title,
+    description: task.description,
+    dueDate: nextDate,
+    dueTime: task.dueTime,
+    category: task.category,
+    completed: false,
+    recurrence: task.recurrence,
+    subtasks: closingSubtasks.map((s) => ({ ...s, completed: false })),
+    familyId: task.familyId || user?.familyId || "",
+    createdBy: task.createdBy || user?.uid || "",
+    isPrivate: task.isPrivate,
+    weekDays: task.weekDays,
+    recurrenceEndDate: task.recurrenceEndDate,
+  } as Omit<Task, "id" | "createdAt" | "updatedAt">);
+
+  const newIds = await notificationService.scheduleTaskNotifications(newTask);
+
+  set((state) => ({
+    localNotificationMap: {
+      ...state.localNotificationMap,
+      [newTask.id]: newIds,
+    },
+  }));
+}
+
+/**
+ * Reconciles this device's local notifications against a fresh Firestore
+ * snapshot. This is what keeps notifications correct when another family
+ * member completes/deletes/reschedules a task while this device is idle on
+ * some other screen (the push notification handles the fully closed-app case).
+ */
+async function reconcileNotificationsWithRemote(
+  previousTasks: Task[],
+  newTasks: Task[],
+  set: (fn: (state: TaskStore) => Partial<TaskStore>) => void,
+): Promise<void> {
+  const newById = new Map(newTasks.map((t) => [t.id, t]));
+  const previousById = new Map(previousTasks.map((t) => [t.id, t]));
+  const updates: Record<string, string[] | null> = {};
+
+  // Tasks that became completed/deleted/invisible remotely: cancel their notifications
+  for (const oldTask of previousTasks) {
+    const wasActive = !oldTask.completed && !oldTask.deletedAt;
+    if (!wasActive) continue;
+
+    const newTask = newById.get(oldTask.id);
+    const nowInactive = !newTask || newTask.completed || !!newTask.deletedAt;
+    if (nowInactive) {
+      await notificationService.cancelTaskNotifications(oldTask.notificationIds);
+      updates[oldTask.id] = null;
+    }
+  }
+
+  // Tasks that are new, reopened, or rescheduled remotely: (re)schedule notifications
+  for (const newTask of newTasks) {
+    if (newTask.completed || newTask.deletedAt) continue;
+
+    const oldTask = previousById.get(newTask.id);
+    const isNew = !oldTask;
+    const wasReopened = !!oldTask?.completed && !newTask.completed;
+    const wasRescheduled =
+      !!oldTask &&
+      !oldTask.completed &&
+      (oldTask.dueDate !== newTask.dueDate ||
+        oldTask.dueTime !== newTask.dueTime ||
+        oldTask.title !== newTask.title);
+
+    if (isNew || wasReopened || wasRescheduled) {
+      const ids = await notificationService.scheduleTaskNotifications(newTask);
+      updates[newTask.id] = ids;
+    }
+  }
+
+  if (Object.keys(updates).length === 0) return;
+
+  set((state) => {
+    const newMap = { ...state.localNotificationMap };
+    for (const [id, ids] of Object.entries(updates)) {
+      if (ids === null) delete newMap[id];
+      else newMap[id] = ids;
+    }
+    return { localNotificationMap: newMap };
+  });
+}
 
 interface TaskStore {
   tasks: Task[];
@@ -89,6 +214,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       async (firestoreTasks) => {
         const state = get();
         const currentUser = useUserStore.getState().user;
+        const previousTasks = state.tasks;
 
         // Filter tasks to only include visible ones (respects private tasks)
         const visibleTasks = filterVisibleTasks(firestoreTasks, currentUser);
@@ -111,7 +237,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
           const newNotificationMap =
             await notificationService.rescheduleAllNotifications(visibleTasks);
           set({ localNotificationMap: newNotificationMap });
+          return;
         }
+
+        // On every subsequent snapshot, reconcile notifications against what
+        // changed remotely (e.g. another family member completed/rescheduled
+        // a task) so this device stays correct without needing a restart.
+        await reconcileNotificationsWithRemote(previousTasks, visibleTasks, set);
       },
     );
     return unsubscribe;
@@ -142,6 +274,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       }));
     } catch (error) {
       console.error("Failed to add task:", error);
+      throw error;
     }
   },
 
@@ -216,6 +349,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       await taskService.updateTask(id, finalUpdates);
     } catch (error) {
       console.error("Failed to update task:", error);
+      throw error;
     }
   },
 
@@ -337,69 +471,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         return;
       }
 
-      // Handle recurrence
+      // Handle recurrence: close this occurrence and open the next one
       if (isCompleting && RecurrenceCalculator.shouldRecur(task.recurrence)) {
         console.log("Handling recurring task");
-
-        // Use RecurrenceCalculator for clean, testable logic
-        const formattedDate = RecurrenceCalculator.calculateNextDate(
-          task.dueDate,
-          task.recurrence,
-          task.weekDays,
-        );
-
-        console.log("Current task date:", task.dueDate);
-        console.log("Next date calculated:", formattedDate);
-
-        // Check if recurrence should end
-        if (task.recurrenceEndDate && formattedDate > task.recurrenceEndDate) {
-          console.log("Recurrence end date reached, stopping recurrence");
-          await notificationService.cancelTaskNotifications(
-            task.notificationIds,
-          );
-
-          // Mark as completed and stop recurrence
-          await taskService.updateTask(id, {
-            completed: true,
-            recurrence: "none",
-            recurrenceEndDate: undefined,
-          });
-
-          set((state) => ({
-            localNotificationMap: {
-              ...state.localNotificationMap,
-              [id]: [],
-            },
-          }));
-          return;
-        }
-
-        await notificationService.cancelTaskNotifications(task.notificationIds);
-
-        const updates = {
-          dueDate: formattedDate,
-          completed: false, // Ensure false
-          subtasks: task.subtasks,
-        };
-
-        console.log("Updating recurring task with:", updates);
-        await taskService.updateTask(id, updates);
-        console.log("Recurring task updated, new date:", formattedDate);
-
-        const nextTaskState = {
-          ...task,
-          ...updates,
-          updatedAt: new Date().toISOString(),
-        };
-        const newIds =
-          await notificationService.scheduleTaskNotifications(nextTaskState);
-
-        set((state) => ({
-          localNotificationMap: {
-            ...state.localNotificationMap,
-            [id]: newIds,
-          },
-        }));
+        await spawnNextRecurringOccurrence(task, task.subtasks, set);
       } else {
         console.log("Handling non-recurring task toggle");
         await notificationService.cancelTaskNotifications(task.notificationIds);
@@ -479,52 +554,16 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     const allSubtasksCompleted = updatedSubtasks.every((s) => s.completed);
 
     if (allSubtasksCompleted && !task.completed) {
-      const isCompleting = true;
-      let updates: Partial<Task> = { subtasks: updatedSubtasks };
-
-      if (task.recurrence && task.recurrence !== "none") {
-        const nextDate = new Date(task.dueDate);
-        switch (task.recurrence) {
-          case "daily":
-            nextDate.setDate(nextDate.getDate() + 1);
-            break;
-          case "weekly":
-            nextDate.setDate(nextDate.getDate() + 7);
-            break;
-          case "monthly":
-            nextDate.setMonth(nextDate.getMonth() + 1);
-            break;
-          case "yearly":
-            nextDate.setFullYear(nextDate.getFullYear() + 1);
-            break;
-        }
-        const year = nextDate.getFullYear();
-        const month = String(nextDate.getMonth() + 1).padStart(2, "0");
-        const day = String(nextDate.getDate()).padStart(2, "0");
-        const formattedDate = `${year}-${month}-${day}`;
-
-        await notificationService.cancelTaskNotifications(task.notificationIds);
-
-        updates.dueDate = formattedDate;
-        updates.completed = false;
-        updates.subtasks = updatedSubtasks;
-
-        await taskService.updateTask(taskId, updates);
-
-        const nextTaskState = { ...task, ...updates } as Task;
-        const newIds =
-          await notificationService.scheduleTaskNotifications(nextTaskState);
-
-        set((state) => ({
-          localNotificationMap: {
-            ...state.localNotificationMap,
-            [taskId]: newIds,
-          },
-        }));
+      if (RecurrenceCalculator.shouldRecur(task.recurrence)) {
+        // All subtasks done on a recurring task: close this occurrence and
+        // open the next one with subtasks reset to incomplete
+        await spawnNextRecurringOccurrence(task, updatedSubtasks, set);
       } else {
         await notificationService.cancelTaskNotifications(task.notificationIds);
-        updates.completed = true;
-        await taskService.updateTask(taskId, updates);
+        await taskService.updateTask(taskId, {
+          subtasks: updatedSubtasks,
+          completed: true,
+        });
         set((state) => {
           const newMap = { ...state.localNotificationMap };
           delete newMap[taskId];

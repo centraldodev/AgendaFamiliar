@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@hooks/useThemeColors';
 import { useCategoryStore } from '@store/categoryStore';
-import { fontSize, fontWeight, spacing } from '@styles/spacing';
+import { borderRadius, cardShadow, fontSize, fontWeight, spacing } from '@styles/spacing';
 import type { Task } from '@types';
 import { formatDate } from '@utils/dateUtils';
 import { getCategoryColor, getCategoryIcon, getCategoryLabel } from '@utils/taskUtils';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface TaskItemProps {
   task: Task;
@@ -107,6 +107,8 @@ export default function TaskItem({ task, onPress, onToggle, onSkip, onSubtaskTog
                   setIsSubtasksExpanded((prev) => !prev);
                 }}
                 disabled={isDeleted}
+                accessibilityLabel={isSubtasksExpanded ? t('tasks.collapse_subtasks', 'Recolher subtarefas') : t('tasks.expand_subtasks', 'Expandir subtarefas')}
+                accessibilityRole="button"
               >
                 <Ionicons
                   name={isSubtasksExpanded ? 'chevron-up' : 'chevron-down'}
@@ -128,6 +130,9 @@ export default function TaskItem({ task, onPress, onToggle, onSkip, onSubtaskTog
               ]}
               onPress={() => !isDeleted && onToggle(task.id)}
               disabled={isDeleted}
+              accessibilityLabel={task.completed ? t('tasks.mark_incomplete', 'Marcar como não concluída') : t('tasks.mark_complete', 'Marcar como concluída')}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: task.completed }}
             >
               {task.completed && <Ionicons name="checkmark" size={16} color="#FFF" />}
             </TouchableOpacity>
@@ -148,6 +153,8 @@ export default function TaskItem({ task, onPress, onToggle, onSkip, onSubtaskTog
               <TouchableOpacity
                 onPress={() => onSkip(task.id)}
                 style={[styles.iconActionButton, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                accessibilityLabel={t('tasks.skip', 'Pular tarefa')}
+                accessibilityRole="button"
               >
                 <Ionicons name="play-skip-forward-outline" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -156,6 +163,8 @@ export default function TaskItem({ task, onPress, onToggle, onSkip, onSubtaskTog
               <TouchableOpacity
                 onPress={() => onDelete(task.id)}
                 style={[styles.iconActionButton, { marginLeft: 6, backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+                accessibilityLabel={t('common.delete', 'Excluir')}
+                accessibilityRole="button"
               >
                 <Ionicons name="trash-outline" size={20} color={colors.danger} />
               </TouchableOpacity>
@@ -184,6 +193,9 @@ export default function TaskItem({ task, onPress, onToggle, onSkip, onSubtaskTog
                     ]}
                     onPress={() => !isDeleted && onSubtaskToggle && onSubtaskToggle(task.id, subtask.id)}
                     disabled={isDeleted}
+                    accessibilityLabel={subtask.completed ? t('tasks.mark_incomplete', 'Marcar como não concluída') : t('tasks.mark_complete', 'Marcar como concluída')}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: subtask.completed }}
                   >
                     {subtask.completed && <Ionicons name="checkmark" size={12} color="#FFF" />}
                   </TouchableOpacity>
@@ -206,26 +218,12 @@ export default function TaskItem({ task, onPress, onToggle, onSkip, onSubtaskTog
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderRadius: 14,
+    borderRadius: borderRadius.xl,
     marginHorizontal: spacing.lg,
     marginVertical: spacing.xs,
     padding: spacing.md,
     overflow: 'hidden',
-    // Shadow handles implicitly by native driver or ignored
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
-      },
-      android: {
-        elevation: 2,
-      },
-      web: {
-        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-      },
-    }),
+    ...cardShadow,
   },
   container: {},
   contentContainer: {

@@ -21,4 +21,6 @@ export {
 } from './services/database';
 
 // Serviços de Notificações
-export { notificationService } from './services/notifications';
+export { BACKGROUND_NOTIFICATION_TASK, notificationService } from './services/notifications';
+export type { TaskPushData } from './services/notifications';
+export { BACKGROUND_SYNC_TASK, registerBackgroundSync } from './services/notifications';

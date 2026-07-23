@@ -30,7 +30,7 @@ export default function CalendarScreen({ navigation }: any) {
     getTodayString() // Use timezone-safe function
   );
 
-  const getMarkedDates = () => {
+  const markedDates = useMemo(() => {
     const marked: any = {};
 
     tasks.forEach((task) => {
@@ -52,7 +52,7 @@ export default function CalendarScreen({ navigation }: any) {
     };
 
     return marked;
-  };
+  }, [tasks, selectedDate, colors]);
 
   const selectedDateTasks = tasks.filter(
     (task) => task.dueDate === selectedDate
@@ -73,7 +73,7 @@ export default function CalendarScreen({ navigation }: any) {
           <Calendar
             key={preferences.theme} // Force re-render on theme change
             current={selectedDate}
-            markedDates={getMarkedDates()}
+            markedDates={markedDates}
             onDayPress={(day: any) => setSelectedDate(day.dateString)}
             monthFormat={'MMMM yyyy'}
             hideArrows={false}
@@ -123,6 +123,8 @@ export default function CalendarScreen({ navigation }: any) {
             <TouchableOpacity
               style={styles.addButton}
               onPress={() => navigation.navigate('AddEdit', { initialDate: selectedDate })}
+              accessibilityLabel={t('tasks.add_task', 'Adicionar tarefa')}
+              accessibilityRole="button"
             >
               <Ionicons name="add-circle" size={28} color={colors.primary} />
             </TouchableOpacity>

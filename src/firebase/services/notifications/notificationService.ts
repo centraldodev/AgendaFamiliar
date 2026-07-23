@@ -4,8 +4,34 @@ import {
     formatBrasiliaDateTime,
     secondsUntilDate,
 } from "@utils/dateUtils";
+import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+
+/**
+ * Name of the background task that processes push notifications sent by the
+ * Cloud Function (functions/src/index.ts) when a family member changes a
+ * shared task, so this device can reconcile its local notifications even
+ * when the app is closed. Registered in index.js at the app entry point.
+ */
+export const BACKGROUND_NOTIFICATION_TASK = "BACKGROUND-TASK-SYNC-NOTIFICATION";
+
+/**
+ * Data payload shape sent by the `onTaskWritten` Cloud Function.
+ */
+export interface TaskPushData {
+  type:
+    | "task-created"
+    | "task-completed"
+    | "task-deleted"
+    | "task-reopened"
+    | "task-rescheduled";
+  taskId: string;
+  title: string;
+  dueDate: string;
+  dueTime?: string | null;
+  recurrence: Task["recurrence"];
+}
 
 // Configure default behavior
 // Configure default behavior
@@ -330,6 +356,74 @@ export const notificationService = {
   > {
     if (Platform.OS === "web") return [];
     return await Notifications.getAllScheduledNotificationsAsync();
+  },
+
+  /**
+   * Obtém o Expo Push Token deste dispositivo, usado pelas Cloud Functions
+   * para enviar atualizações em background sobre tarefas compartilhadas.
+   * Retorna null se não for possível obter (web, emulador sem Google Play, etc).
+   */
+  async registerForPushNotificationsAsync(): Promise<string | null> {
+    if (Platform.OS === "web") return null;
+
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== "granted") return null;
+
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      if (!projectId) {
+        console.warn("[NotificationService] Missing EAS projectId for push token");
+        return null;
+      }
+
+      const { data: token } = await Notifications.getExpoPushTokenAsync({
+        projectId,
+      });
+      console.log("[NotificationService] Expo push token obtained");
+      return token;
+    } catch (error) {
+      console.error("[NotificationService] Error getting push token:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Reconcilia as notificações locais deste dispositivo a partir do payload
+   * de um push recebido (em background ou primeiro plano). Não depende do
+   * estado da store/Firestore - usa só os dados que vieram na notificação,
+   * para funcionar mesmo com o app fechado.
+   */
+  async reconcileFromPushData(data: TaskPushData): Promise<void> {
+    if (!data?.taskId || !data?.type) return;
+
+    console.log("[NotificationService] Reconciling from push data:", data);
+
+    switch (data.type) {
+      case "task-completed":
+      case "task-deleted":
+        await this.cancelScheduledNotificationsByTask(data.taskId);
+        break;
+
+      case "task-created":
+      case "task-reopened":
+      case "task-rescheduled": {
+        const fakeTask: Task = {
+          id: data.taskId,
+          title: data.title,
+          description: "",
+          dueDate: data.dueDate,
+          dueTime: data.dueTime || undefined,
+          category: "",
+          completed: false,
+          recurrence: data.recurrence,
+          subtasks: [],
+          createdAt: "",
+          updatedAt: "",
+        };
+        await this.scheduleTaskNotifications(fakeTask);
+        break;
+      }
+    }
   },
 
   /**

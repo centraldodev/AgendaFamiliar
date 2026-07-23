@@ -1,4 +1,4 @@
-import { fontSize, spacing } from "@styles/spacing";
+import { borderRadius, cardShadow, fontSize, fontWeight, spacing } from "@styles/spacing";
 import { Platform, StyleSheet } from "react-native";
 
 export const createStyles = (colors: any) =>
@@ -9,7 +9,8 @@ export const createStyles = (colors: any) =>
     statsContainer: {
       flexDirection: "row",
       paddingHorizontal: spacing.lg,
-      paddingVertical: 4,
+      paddingTop: spacing.md,
+      paddingBottom: 4,
       gap: spacing.sm,
     },
     filterContainer: {
@@ -32,13 +33,13 @@ export const createStyles = (colors: any) =>
       alignItems: "center",
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
-      borderRadius: 20,
+      borderRadius: borderRadius.xxl,
       borderWidth: 1,
       marginRight: spacing.sm,
     },
     filterText: {
       fontSize: fontSize.sm,
-      fontWeight: "500",
+      fontWeight: fontWeight.medium,
     },
     dateFilterContainer: {
       flexDirection: "row",
@@ -65,18 +66,22 @@ export const createStyles = (colors: any) =>
     },
     statBox: {
       flex: 1,
-      borderRadius: 10,
-      paddingVertical: spacing.sm,
+      borderRadius: borderRadius.xl,
+      paddingVertical: spacing.md,
       paddingHorizontal: spacing.sm,
       alignItems: "center",
+      ...cardShadow,
     },
     statNumber: {
-      fontSize: fontSize.lg,
-      fontWeight: "700",
+      fontSize: fontSize.xl,
+      fontWeight: fontWeight.bold,
       marginBottom: 2,
     },
     statLabel: {
       fontSize: fontSize.xs,
+      fontWeight: fontWeight.semibold,
+      textTransform: "uppercase",
+      letterSpacing: 0.3,
     },
     centerContainer: {
       flex: 1,
@@ -111,9 +116,19 @@ export const createStyles = (colors: any) =>
       borderRadius: 28,
       justifyContent: "center",
       alignItems: "center",
-      elevation: 5,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.2,
+          shadowRadius: 8,
+        },
+        android: {
+          elevation: 6,
+        },
+        web: {
+          boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.2)",
+        },
+      }),
     },
   });

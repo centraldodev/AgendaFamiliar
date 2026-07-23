@@ -95,6 +95,16 @@ export const useTaskForm = ({
       return;
     }
 
+    if (!category) {
+      Alert.alert("Erro", "Selecione uma categoria para a tarefa");
+      return;
+    }
+
+    if (recurrence === "custom_weekly" && weekDays.length === 0) {
+      Alert.alert("Erro", "Selecione ao menos um dia da semana para a recorrência");
+      return;
+    }
+
     setLoading(true);
     try {
       // Format date as YYYY-MM-DD

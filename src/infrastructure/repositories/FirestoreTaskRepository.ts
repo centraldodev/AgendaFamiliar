@@ -18,7 +18,7 @@ export class FirestoreTaskRepository implements ITaskRepository {
     }
 
     const now = new Date().toISOString();
-    const taskData = {
+    const taskData: Record<string, unknown> = {
       title: task.title,
       description: task.description || '',
       dueDate: task.dueDate,
@@ -29,16 +29,27 @@ export class FirestoreTaskRepository implements ITaskRepository {
       subtasks: task.subtasks || [],
       userId: user.uid,
       familyId: task.familyId,
+      // Firestore rules require createdBy === request.auth.uid on create,
+      // so the acting user always becomes the owner of a newly created doc
+      // (this also applies when a recurring task spawns its next occurrence).
       createdBy: user.uid,
+      isPrivate: task.isPrivate || false,
+      lastModifiedBy: user.uid,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
+
+    // Only include optional fields when defined - Firestore rejects `undefined` values
+    if (task.weekDays !== undefined) taskData.weekDays = task.weekDays;
+    if (task.recurrenceEndDate !== undefined) taskData.recurrenceEndDate = task.recurrenceEndDate;
 
     const docRef = await firestore.collection(TASKS_COLLECTION).add(taskData);
 
     return {
       ...task,
       id: docRef.id,
+      createdBy: (taskData.createdBy as string),
+      isPrivate: taskData.isPrivate as boolean,
       createdAt: now,
       updatedAt: now,
     };
@@ -54,6 +65,7 @@ export class FirestoreTaskRepository implements ITaskRepository {
     );
 
     cleanUpdates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    cleanUpdates.lastModifiedBy = user.uid;
 
     await firestore
       .collection(TASKS_COLLECTION)
@@ -94,26 +106,73 @@ export class FirestoreTaskRepository implements ITaskRepository {
       return () => { };
     }
 
-    return firestore
+    const mapDoc = (doc: any): Task => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.().toISOString() || new Date().toISOString(),
+        updatedAt: data.updatedAt?.toDate?.().toISOString() || new Date().toISOString(),
+      } as Task;
+    };
+
+    // Firestore rejects a single query mixing public and private tasks outright:
+    // the read rule depends on `isPrivate`, a field this query doesn't pin down,
+    // so Firestore can't prove every possible match is compliant and denies the
+    // whole request - even if no document actually violates the rule (verified
+    // in firestore-tests/tasks.rules.test.js). Splitting into two rule-compliant
+    // queries and merging client-side avoids that entirely.
+    const uid = auth.currentUser?.uid;
+    let publicTasks: Task[] = [];
+    let privateTasks: Task[] = [];
+    let publicLoaded = false;
+    let privateLoaded = !uid;
+
+    const emit = () => {
+      if (!publicLoaded || !privateLoaded) return;
+      const merged = new Map<string, Task>();
+      publicTasks.forEach((t) => merged.set(t.id, t));
+      privateTasks.forEach((t) => merged.set(t.id, t));
+      callback(Array.from(merged.values()));
+    };
+
+    const unsubscribePublic = firestore
       .collection(TASKS_COLLECTION)
       .where('familyId', '==', familyId)
+      .where('isPrivate', '==', false)
       .onSnapshot(
         (snapshot: any) => {
-          const tasks = snapshot.docs.map((doc: any) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              ...data,
-              createdAt: data.createdAt?.toDate?.().toISOString() || new Date().toISOString(),
-              updatedAt: data.updatedAt?.toDate?.().toISOString() || new Date().toISOString(),
-            };
-          }) as Task[];
-          callback(tasks);
+          publicTasks = snapshot.docs.map(mapDoc);
+          publicLoaded = true;
+          emit();
         },
         (error: any) => {
-          console.error('Error subscribing to tasks:', error);
+          console.error('Error subscribing to public tasks:', error);
         }
       );
+
+    const unsubscribePrivate = uid
+      ? firestore
+        .collection(TASKS_COLLECTION)
+        .where('familyId', '==', familyId)
+        .where('isPrivate', '==', true)
+        .where('createdBy', '==', uid)
+        .onSnapshot(
+          (snapshot: any) => {
+            privateTasks = snapshot.docs.map(mapDoc);
+            privateLoaded = true;
+            emit();
+          },
+          (error: any) => {
+            console.error('Error subscribing to private tasks:', error);
+          }
+        )
+      : () => { };
+
+    return () => {
+      unsubscribePublic();
+      unsubscribePrivate();
+    };
   }
 
   async getOldCompletedTasks(familyId: string, beforeDate: string): Promise<Task[]> {

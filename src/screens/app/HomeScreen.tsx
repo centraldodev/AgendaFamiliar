@@ -7,6 +7,7 @@ import { useCategoryStore } from '@store/categoryStore';
 import { useTaskStore } from '@store/taskStore';
 import { useUserStore } from '@store/userStore';
 import type { Task } from '@types';
+import { getDateDaysAgoString, getTodayString } from '@utils/dateParser';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -151,12 +152,9 @@ export default function HomeScreen({ navigation }: any) {
   };
 
   const handleDeleteTask = (taskId: string) => {
-    console.log('handleDeleteTask called with taskId:', taskId);
-
     // On web, confirm() works better than Alert.alert
     if (Platform.OS === 'web') {
       if (window.confirm(t('tasks.delete_confirm_msg'))) {
-        console.log('User confirmed delete on web');
         deleteTask(taskId);
       }
       return;
@@ -170,10 +168,7 @@ export default function HomeScreen({ navigation }: any) {
         {
           text: t('common.delete'),
           style: 'destructive',
-          onPress: () => {
-            console.log('User confirmed delete on native');
-            deleteTask(taskId);
-          },
+          onPress: () => deleteTask(taskId),
         },
       ]
     );
@@ -202,19 +197,10 @@ export default function HomeScreen({ navigation }: any) {
     );
   };
 
-  // Helper to get today's date in YYYY-MM-DD format using LOCAL timezone (not UTC)
-  const getTodayStr = useCallback(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }, []);
-
   // Get filtered tasks based on current tab
   const getFilteredTasks = useCallback((dateFilter: 'today' | 'upcoming') => {
     return tasks.filter((t) => {
-      const todayStr = getTodayStr();
+      const todayStr = getTodayString();
 
       // 0. Exclude deleted tasks
       if (t.deletedAt) return false;
@@ -228,12 +214,7 @@ export default function HomeScreen({ navigation }: any) {
         if (!t.completed) return false;
         // Only show completed tasks from last 7 days
         if (t.updatedAt) {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          const sevenDaysAgoYear = sevenDaysAgo.getFullYear();
-          const sevenDaysAgoMonth = String(sevenDaysAgo.getMonth() + 1).padStart(2, '0');
-          const sevenDaysAgoDay = String(sevenDaysAgo.getDate()).padStart(2, '0');
-          const sevenDaysAgoStr = `${sevenDaysAgoYear}-${sevenDaysAgoMonth}-${sevenDaysAgoDay}`;
+          const sevenDaysAgoStr = getDateDaysAgoString(7);
           const updatedDate = t.updatedAt.split('T')[0];
           if (updatedDate < sevenDaysAgoStr) return false;
         }
@@ -263,20 +244,15 @@ export default function HomeScreen({ navigation }: any) {
       // Sort by date: nearest first
       return a.dueDate.localeCompare(b.dueDate);
     });
-  }, [tasks, selectedStatus, selectedCategory, getTodayStr]);
+  }, [tasks, selectedStatus, selectedCategory]);
 
   const todayTasks = useMemo(() => getFilteredTasks('today'), [getFilteredTasks]);
   const upcomingTasks = useMemo(() => getFilteredTasks('upcoming'), [getFilteredTasks]);
 
   // Calculate counts for status buttons using LOCAL timezone
-  const todayStr = getTodayStr();
+  const todayStr = getTodayString();
   const currentDateFilter: 'today' | 'upcoming' = index === 0 ? 'today' : 'upcoming';
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const sevenDaysAgoYear = sevenDaysAgo.getFullYear();
-  const sevenDaysAgoMonth = String(sevenDaysAgo.getMonth() + 1).padStart(2, '0');
-  const sevenDaysAgoDay = String(sevenDaysAgo.getDate()).padStart(2, '0');
-  const sevenDaysAgoStr = `${sevenDaysAgoYear}-${sevenDaysAgoMonth}-${sevenDaysAgoDay}`;
+  const sevenDaysAgoStr = getDateDaysAgoString(7);
 
   // Completed: only tasks completed in the last 7 days
   const completedCount = tasks.filter((t) => {
@@ -299,7 +275,8 @@ export default function HomeScreen({ navigation }: any) {
       selectedStatus === 'pending' ? currentDateFilter : 'today';
 
     if (pendingDateFilter === 'today') {
-      return t.dueDate === todayStr;
+      // Matches the "Today" tab, which also folds in active overdue tasks
+      return t.dueDate <= todayStr;
     }
 
     return t.dueDate > todayStr;
@@ -564,6 +541,8 @@ export default function HomeScreen({ navigation }: any) {
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.primary }]}
         onPress={() => navigation.navigate('AddEdit')}
+        accessibilityLabel={t('tasks.add_task', 'Adicionar tarefa')}
+        accessibilityRole="button"
       >
         <Ionicons name="add" size={28} color="#FFF" />
       </TouchableOpacity>

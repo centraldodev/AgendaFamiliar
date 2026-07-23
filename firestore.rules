@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function belongsToFamily(familyId) {
+      return isAuthenticated() && getUserData().familyId == familyId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'admin';
+    }
+
+    function isAdminOfFamily(familyId) {
+      return belongsToFamily(familyId) && isAdmin();
+    }
+
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    match /users/{userId} {
+      // Leitura: Apenas o próprio usuário ou membros da mesma família
+      allow read: if isOwner(userId) ||
+                     (isAuthenticated() && belongsToFamily(resource.data.familyId));
+
+      // Criação: Apenas o próprio usuário pode criar seu perfil
+      allow create: if isOwner(userId) &&
+                       request.resource.data.uid == userId;
+
+      // Atualização: Apenas o próprio usuário (inclui pushTokens do device)
+      // ou admin da família (para gerenciar roles)
+      allow update: if isOwner(userId) ||
+                       (isAuthenticated() &&
+                        isAdminOfFamily(resource.data.familyId) &&
+                        // Admin pode alterar role, mas não pode se auto-rebaixar
+                        (request.resource.data.role != 'dependent' || userId != request.auth.uid));
+
+      // Exclusão: Apenas o próprio usuário
+      allow delete: if isOwner(userId);
+    }
+
+    // ============================================
+    // FAMILIES COLLECTION
+    // ============================================
+    match /families/{familyId} {
+      // Leitura: Membros da família
+      allow read: if belongsToFamily(familyId);
+
+      // Criação: Qualquer usuário autenticado pode criar uma família
+      allow create: if isAuthenticated() &&
+                       request.resource.data.createdBy == request.auth.uid;
+
+      // Atualização: Apenas admin da família
+      allow update: if isAdminOfFamily(familyId);
+
+      // Exclusão: Apenas o criador da família
+      allow delete: if isAuthenticated() &&
+                       resource.data.createdBy == request.auth.uid;
+    }
+
+    // ============================================
+    // TASKS COLLECTION
+    // ============================================
+    match /tasks/{taskId} {
+      // Leitura:
+      // - Tarefas privadas: apenas o criador
+      // - Tarefas normais: membros da família
+      allow read: if isAuthenticated() && (
+                     (resource.data.isPrivate == true && resource.data.createdBy == request.auth.uid) ||
+                     (resource.data.isPrivate != true && belongsToFamily(resource.data.familyId))
+                   );
+
+      // Criação: Membros da família
+      allow create: if isAuthenticated() &&
+                       belongsToFamily(request.resource.data.familyId) &&
+                       request.resource.data.createdBy == request.auth.uid &&
+                       request.resource.data.familyId == getUserData().familyId;
+
+      // Atualização:
+      // - Usuário pode atualizar suas próprias tarefas
+      // - Admin pode atualizar qualquer tarefa não-privada da família
+      allow update: if isAuthenticated() &&
+                       belongsToFamily(resource.data.familyId) &&
+                       (
+                         resource.data.createdBy == request.auth.uid ||
+                         (isAdminOfFamily(resource.data.familyId) && resource.data.isPrivate != true)
+                       );
+
+      // Hard Delete: Apenas criador ou admin (para tarefas não-privadas)
+      allow delete: if isAuthenticated() &&
+                       (resource.data.createdBy == request.auth.uid ||
+                        (isAdminOfFamily(resource.data.familyId) && resource.data.isPrivate != true));
+    }
+
+    // ============================================
+    // APPROVALS COLLECTION
+    // ============================================
+    match /approvals/{approvalId} {
+      // Leitura: Membros da família
+      allow read: if isAuthenticated() &&
+                     belongsToFamily(resource.data.familyId);
+
+      // Criação: Membros da família podem criar solicitações
+      allow create: if isAuthenticated() &&
+                       belongsToFamily(request.resource.data.familyId) &&
+                       request.resource.data.requestedBy == request.auth.uid &&
+                       request.resource.data.status == 'pending';
+
+      // Atualização: Apenas admin pode aprovar/rejeitar
+      allow update: if isAdminOfFamily(resource.data.familyId) &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+                       (request.resource.data.status == 'approved' ||
+                        request.resource.data.status == 'rejected');
+
+      // Exclusão: Apenas admin ou o solicitante pode deletar
+      allow delete: if isAuthenticated() &&
+                       (isAdminOfFamily(resource.data.familyId) ||
+                        resource.data.requestedBy == request.auth.uid);
+    }
+
+    // ============================================
+    // CATEGORIES COLLECTION
+    // ============================================
+    match /categories/{categoryId} {
+      // Leitura: Membros da família
+      allow read: if isAuthenticated() &&
+                     belongsToFamily(resource.data.familyId);
+
+      // Criação: Membros da família
+      allow create: if isAuthenticated() &&
+                       belongsToFamily(request.resource.data.familyId);
+
+      // Atualização: Apenas admin
+      allow update: if isAdminOfFamily(resource.data.familyId);
+
+      // Exclusão: Apenas admin
+      allow delete: if isAdminOfFamily(resource.data.familyId);
+    }
+
+    // ============================================
+    // DENY ALL OTHER COLLECTIONS
+    // ============================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

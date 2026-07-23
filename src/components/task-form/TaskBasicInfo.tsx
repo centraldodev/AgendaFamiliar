@@ -1,5 +1,5 @@
 import { useThemeColors } from '@hooks/useThemeColors';
-import { fontSize, spacing } from '@styles/spacing';
+import { borderRadius, cardShadow, fontSize, fontWeight, spacing } from '@styles/spacing';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
@@ -25,13 +25,16 @@ export const TaskBasicInfo: React.FC<TaskBasicInfoProps> = ({
   const { t } = useTranslation();
 
   return (
-    <View style={styles.section}>
-      <Text style={[styles.label, { color: colors.text }]}>{t('tasks.task_title')} *</Text>
+    <View style={[styles.section, { backgroundColor: colors.surface }]}>
+      <Text style={[styles.label, { color: colors.textSecondary }]}>
+        {t('tasks.task_title')}
+        <Text style={{ color: colors.danger }}> *</Text>
+      </Text>
       <TextInput
         style={[
           styles.input,
           {
-            backgroundColor: colors.surface,
+            backgroundColor: colors.backgroundSecondary,
             color: colors.text,
             borderColor: colors.border,
           },
@@ -42,13 +45,15 @@ export const TaskBasicInfo: React.FC<TaskBasicInfoProps> = ({
         placeholderTextColor={colors.textSecondary}
       />
 
-      <Text style={[styles.label, { color: colors.text }]}>{t('tasks.task_description')}</Text>
+      <Text style={[styles.label, styles.secondLabel, { color: colors.textSecondary }]}>
+        {t('tasks.task_description')}
+      </Text>
       <TextInput
         style={[
           styles.input,
           styles.textArea,
           {
-            backgroundColor: colors.surface,
+            backgroundColor: colors.backgroundSecondary,
             color: colors.text,
             borderColor: colors.border,
           },
@@ -66,19 +71,26 @@ export const TaskBasicInfo: React.FC<TaskBasicInfoProps> = ({
 
 const styles = StyleSheet.create({
   section: {
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
     marginBottom: spacing.lg,
+    ...cardShadow,
   },
   label: {
-    fontSize: fontSize.base,
-    fontWeight: '600',
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
     marginBottom: spacing.sm,
+  },
+  secondLabel: {
+    marginTop: spacing.md,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     fontSize: fontSize.base,
-    marginBottom: spacing.md,
   },
   textArea: {
     minHeight: 100,

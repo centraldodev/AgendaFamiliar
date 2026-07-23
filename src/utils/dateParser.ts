@@ -34,6 +34,17 @@ export const getTodayString = (): string => {
 };
 
 /**
+ * Gets the date N days ago as a YYYY-MM-DD string
+ * @param days - Number of days in the past
+ * @returns Date string N days ago
+ */
+export const getDateDaysAgoString = (days: number): string => {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return formatDateToString(date);
+};
+
+/**
  * Checks if a date string is in the past
  * @param dateStr - Date string in YYYY-MM-DD format
  * @returns True if date is before today
