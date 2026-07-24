@@ -65,6 +65,9 @@ export default {
                     sounds: [],
                 },
             ],
+            'expo-font',
+            'expo-router',
+            'expo-web-browser',
             // Commented out for Expo Go compatibility - requires development build
             // '@react-native-google-signin/google-signin',
         ],

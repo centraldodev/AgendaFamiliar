@@ -22,7 +22,7 @@ import {
     useWindowDimensions,
     View
 } from 'react-native';
-import { SceneMap, TabBar, TabView } from 'react-native-tab-view';
+import { TabBar, TabView } from 'react-native-tab-view';
 import { createStyles } from './HomeScreen.styles';
 
 export default function HomeScreen({ navigation }: any) {
@@ -352,13 +352,25 @@ export default function HomeScreen({ navigation }: any) {
   );
 
   // Tab scenes
-  const TodayRoute = () => renderTaskList(todayTasks);
-  const UpcomingRoute = () => renderTaskList(upcomingTasks);
-
-  const renderScene = SceneMap({
-    today: TodayRoute,
-    upcoming: UpcomingRoute,
-  });
+  // NOTE: intentionally NOT using react-native-tab-view's SceneMap() here.
+  // SceneMap wraps each route in `React.createElement(component, ...)` where
+  // `component` is whatever function you pass it - if that function is
+  // redefined on every render (as it would be if it closed over todayTasks/
+  // upcomingTasks inline), React treats it as a brand new component type and
+  // remounts the whole scene (FlatList + every TaskItem) on every store
+  // update, wiping out each TaskItem's local "subtasks expanded" state.
+  // renderScene is called directly by TabView (not used as a JSX type), so
+  // returning JSX from a plain switch here is safe from that trap.
+  const renderScene = ({ route }: { route: { key: string } }) => {
+    switch (route.key) {
+      case 'today':
+        return renderTaskList(todayTasks);
+      case 'upcoming':
+        return renderTaskList(upcomingTasks);
+      default:
+        return null;
+    }
+  };
 
   const renderTabBar = (props: any) => (
     <TabBar

@@ -24,6 +24,7 @@ export interface Task {
   notificationIds?: string[];
   familyId?: string;
   createdBy?: string;
+  lastModifiedBy?: string; // uid of whoever last wrote to this task (edit, toggle, etc.)
   isPrivate?: boolean; // Private tasks are only visible to the creator
   weekDays?: WeekDay[]; // For custom_weekly recurrence - which days of week to repeat
   recurrenceEndDate?: string; // YYYY-MM-DD - when recurrence ends (undefined = never)

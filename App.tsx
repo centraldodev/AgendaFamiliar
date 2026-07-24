@@ -3,6 +3,7 @@ import RootNavigator from '@navigation/RootNavigator';
 import SplashScreen from '@screens/SplashScreen';
 import { auth, authService, notificationService, taskService, userService } from '@src/firebase';
 import { useCategoryStore } from '@store/categoryStore';
+import { useFamilyMembersStore } from '@store/familyMembersStore';
 import { useTaskStore } from '@store/taskStore';
 import { useUserStore } from '@store/userStore';
 import * as Notifications from 'expo-notifications';
@@ -25,6 +26,8 @@ export default function App() {
   const initializeTasks = useTaskStore((state) => state.initialize);
   const initializeCategories = useCategoryStore((state) => state.initialize);
   const cleanupCategories = useCategoryStore((state) => state.cleanup);
+  const initializeFamilyMembers = useFamilyMembersStore((state) => state.initialize);
+  const cleanupFamilyMembers = useFamilyMembersStore((state) => state.cleanup);
 
   // Responsividade WEB: Usando state para garantir consistência na hidratação
   const [webContainerStyle, setWebContainerStyle] = useState<any>({ flex: 1 });
@@ -96,10 +99,12 @@ export default function App() {
     if (user?.familyId) {
       const unsubscribe = initializeTasks();
       initializeCategories(user.familyId);
+      initializeFamilyMembers(user.familyId);
 
       return () => {
         unsubscribe();
         cleanupCategories();
+        cleanupFamilyMembers();
       };
     }
   }, [user?.familyId]);

@@ -97,6 +97,17 @@ export default function CalendarScreen({ navigation }: any) {
             onMonthChange={(month: any) => setVisibleYear(month.year)}
             monthFormat={'MMMM yyyy'}
             hideArrows={false}
+            // react-native-calendars renders arrows as tinted PNGs by default,
+            // which don't reliably pick up theme.arrowColor on every platform -
+            // rendering our own Ionicons keeps them visibly consistent with the
+            // rest of the app's iconography.
+            renderArrow={(direction: 'left' | 'right') => (
+              <Ionicons
+                name={direction === 'left' ? 'chevron-back' : 'chevron-forward'}
+                size={22}
+                color={colors.primary}
+              />
+            )}
             hideDayNames={false}
             disableMonthChange={false}
             enableSwipeMonths={true}

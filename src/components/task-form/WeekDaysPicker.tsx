@@ -1,3 +1,4 @@
+import { WEEK_DAYS } from '@constants/task';
 import { useThemeColors } from '@hooks/useThemeColors';
 import { borderRadius, fontSize, fontWeight, spacing } from '@styles/spacing';
 import type { WeekDay } from '@types';
@@ -8,17 +9,6 @@ interface WeekDaysPickerProps {
     selectedDays: WeekDay[];
     onDaysChange: (days: WeekDay[]) => void;
 }
-
-// Days of week in Portuguese (short)
-const WEEK_DAYS: { day: WeekDay; label: string; fullLabel: string }[] = [
-    { day: 0, label: 'D', fullLabel: 'Dom' },
-    { day: 1, label: 'S', fullLabel: 'Seg' },
-    { day: 2, label: 'T', fullLabel: 'Ter' },
-    { day: 3, label: 'Q', fullLabel: 'Qua' },
-    { day: 4, label: 'Q', fullLabel: 'Qui' },
-    { day: 5, label: 'S', fullLabel: 'Sex' },
-    { day: 6, label: 'S', fullLabel: 'Sáb' },
-];
 
 export function WeekDaysPicker({ selectedDays, onDaysChange }: WeekDaysPickerProps) {
     const colors = useThemeColors();

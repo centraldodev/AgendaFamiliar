@@ -182,7 +182,10 @@
         "due_date": "Data de Vencimento",
         "due_time": "Horário",
         "no_time": "Sem horário",
-        "deleted": "EXCLUÍDA"
+        "deleted": "EXCLUÍDA",
+        "created_by": "Criado por",
+        "updated_by": "Última alteração",
+        "updated_at": "em"
     },
     "recurrence": {
         "none": "Não repete",

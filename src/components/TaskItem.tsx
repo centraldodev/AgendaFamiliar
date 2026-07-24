@@ -1,9 +1,11 @@
+import { RECURRENCE_LABELS, formatWeekDays } from '@constants/task';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@hooks/useThemeColors';
 import { useCategoryStore } from '@store/categoryStore';
+import { useFamilyMembersStore } from '@store/familyMembersStore';
 import { borderRadius, cardShadow, fontSize, fontWeight, spacing } from '@styles/spacing';
 import type { Task } from '@types';
-import { formatDate } from '@utils/dateUtils';
+import { formatDate, formatDateTime } from '@utils/dateUtils';
 import { getCategoryColor, getCategoryIcon, getCategoryLabel } from '@utils/taskUtils';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +25,14 @@ export default function TaskItem({ task, onPress, onToggle, onSkip, onSubtaskTog
   const { t } = useTranslation();
   const colors = useThemeColors();
   const { categories } = useCategoryStore();
+  // Subscribe to membersByUid directly (not the getMemberName selector) so
+  // this re-renders once family members finish loading asynchronously
+  const membersByUid = useFamilyMembersStore((state) => state.membersByUid);
+  const getMemberName = (uid?: string): string | null => {
+    if (!uid) return null;
+    const member = membersByUid[uid];
+    return member?.displayName || member?.email || null;
+  };
   const [isSubtasksExpanded, setIsSubtasksExpanded] = useState(false);
 
   // ... (existing helper functions) ...
@@ -46,6 +56,21 @@ export default function TaskItem({ task, onPress, onToggle, onSkip, onSubtaskTog
   const categoryColor = getCategoryColor(task.category, categories);
   const categoryIcon = getCategoryIcon(task.category, categories);
   const isRecurring = task.recurrence && task.recurrence !== 'none';
+  // Custom weekly recurrence reads better as the actual selected days
+  // ("Qui, Sex, Sáb") than the generic "Personalizado" label
+  const recurrenceDisplayText =
+    task.recurrence === 'custom_weekly' && task.weekDays?.length
+      ? formatWeekDays(task.weekDays)
+      : t(`recurrence.${task.recurrence}`, { defaultValue: RECURRENCE_LABELS[task.recurrence] });
+
+  const authorName = getMemberName(task.createdBy);
+  // Only show "last updated" when something actually happened after creation
+  // (otherwise it's just redundant with "created by")
+  const hasBeenModifiedSinceCreation =
+    !!task.lastModifiedBy && task.updatedAt !== task.createdAt;
+  const lastModifiedByName = hasBeenModifiedSinceCreation
+    ? getMemberName(task.lastModifiedBy)
+    : null;
 
   return (
     <View style={[
@@ -146,8 +171,18 @@ export default function TaskItem({ task, onPress, onToggle, onSkip, onSubtaskTog
               <Text style={[styles.date, { color: colors.textSecondary }]}>
                 {formatDate(task.dueDate)}
                 {task.dueTime ? ` • ${task.dueTime}` : ''}
-                {isRecurring && <Text style={[styles.recurrenceText, { color: colors.primary }]}>{' • '}{t(`recurrence.${task.recurrence}`)}</Text>}
+                {isRecurring && <Text style={[styles.recurrenceText, { color: colors.primary }]}>{' • '}{recurrenceDisplayText}</Text>}
               </Text>
+              {authorName && (
+                <Text style={[styles.metaText, { color: colors.textTertiary }]} numberOfLines={1}>
+                  {t('tasks.created_by', 'Criado por')}: {authorName}
+                </Text>
+              )}
+              {lastModifiedByName && (
+                <Text style={[styles.metaText, { color: colors.textTertiary }]} numberOfLines={1}>
+                  {t('tasks.updated_by', 'Última alteração')}: {lastModifiedByName} {t('tasks.updated_at', 'em')} {formatDateTime(new Date(task.updatedAt))}
+                </Text>
+              )}
             </View>
             {isRecurring && onSkip && !task.completed && !isDeleted && (
               <TouchableOpacity
@@ -315,6 +350,10 @@ const styles = StyleSheet.create({
   date: {
     fontSize: fontSize.xs,
     marginBottom: 2,
+  },
+  metaText: {
+    fontSize: fontSize.xs,
+    marginTop: 2,
   },
   recurrenceText: {
     fontWeight: '500',

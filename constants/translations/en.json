@@ -182,7 +182,10 @@
         "due_date": "Due Date",
         "due_time": "Time",
         "no_time": "No time",
-        "deleted": "DELETED"
+        "deleted": "DELETED",
+        "created_by": "Created by",
+        "updated_by": "Last updated",
+        "updated_at": "at"
     },
     "recurrence": {
         "none": "None",
