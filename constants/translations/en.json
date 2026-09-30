@@ -198,5 +198,26 @@
         "title": "Calendar",
         "no_tasks_day": "No tasks for this day",
         "holiday": "Holiday"
+    },
+    "ive": {
+        "title": "Ive assistant",
+        "label": "Voice control",
+        "desc": "Ive reads the family tasks and creates, completes, reschedules and deletes them by voice. Changes and deletions are always confirmed, and the app's permission rules still apply.",
+        "connected": "Connected on {{date}}",
+        "last_use": "last used on {{date}}",
+        "never_used": "not used yet",
+        "connect": "Connect to Ive",
+        "connect_other": "Connect another device",
+        "revoke": "Revoke",
+        "revoke_title": "Disconnect Ive",
+        "revoke_msg": "Revoke the access \"{{name}}\"? Ive immediately stops seeing and changing the agenda.",
+        "paste_title": "Paste into Ive",
+        "paste_desc": "In Ive: Settings › Conexões › Conectar um app. Paste the address and the token. The token is shown only now.",
+        "address": "Manifest address",
+        "token": "Token",
+        "copy": "Copy",
+        "copied": "Copied",
+        "done": "Done",
+        "error": "Could not reach Ive right now."
     }
 }

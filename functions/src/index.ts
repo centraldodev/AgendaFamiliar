@@ -194,3 +194,6 @@ export const onTaskWritten = onDocumentWritten(
     }
   },
 );
+
+// A assistente Ive (controle por voz): ver ive/app.ts
+export { ive } from "./ive";

@@ -1,3 +1,4 @@
+import IveConnection from '@components/IveConnection';
 import PickerModal from '@components/PickerModal';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@hooks/useThemeColors';
@@ -562,6 +563,9 @@ export default function SettingsScreen({ navigation }: any) {
           />
         </TouchableOpacity>
       </View>
+
+      {/* Assistente Ive (controle por voz) */}
+      <IveConnection />
 
       {/* About Section */}
       <View style={styles.section}>

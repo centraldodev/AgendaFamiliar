@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onTaskWritten = void 0;
+exports.ive = exports.onTaskWritten = void 0;
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const firebase_functions_1 = require("firebase-functions");
@@ -149,4 +149,7 @@ exports.onTaskWritten = (0, firestore_2.onDocumentWritten)("tasks/{taskId}", asy
         firebase_functions_1.logger.error(`[onTaskWritten] Failed to process task ${taskId}`, error);
     }
 });
+// A assistente Ive (controle por voz): ver ive/app.ts
+var ive_1 = require("./ive");
+Object.defineProperty(exports, "ive", { enumerable: true, get: function () { return ive_1.ive; } });
 //# sourceMappingURL=index.js.map

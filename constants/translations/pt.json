@@ -198,5 +198,26 @@
         "title": "Calendário",
         "no_tasks_day": "Nenhuma tarefa neste dia",
         "holiday": "Feriado"
+    },
+    "ive": {
+        "title": "Assistente Ive",
+        "label": "Controle por voz",
+        "desc": "A Ive fala as tarefas da família, cria, conclui, remarca e apaga por voz. Mudar e apagar ela sempre confirma com você, e as regras de quem pode mexer continuam as do app.",
+        "connected": "Conectado em {{date}}",
+        "last_use": "último uso em {{date}}",
+        "never_used": "ainda não usado",
+        "connect": "Conectar à Ive",
+        "connect_other": "Conectar outro aparelho",
+        "revoke": "Revogar",
+        "revoke_title": "Desconectar a Ive",
+        "revoke_msg": "Revogar o acesso \"{{name}}\"? A Ive deixa de ver e mexer na agenda na hora.",
+        "paste_title": "Cole na Ive",
+        "paste_desc": "Na Ive: Configurações › Conexões › Conectar um app. Cole o endereço e o token. O token aparece só agora.",
+        "address": "Endereço da ficha",
+        "token": "Token",
+        "copy": "Copiar",
+        "copied": "Copiado",
+        "done": "Já copiei",
+        "error": "Não foi possível falar com a Ive agora."
     }
 }

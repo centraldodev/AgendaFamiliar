@@ -48,3 +48,21 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## 🎙️ Assistente Ive (controle por voz)
+
+A assistente [Ive](https://github.com/centraldodev/Ive-Desktop) lê e mexe nas tarefas da família por voz, pela função
+`ive` do Firebase (`functions/src/ive`, protocolo `ive-app/1` da Ive). As outras funções não mudam.
+
+- **O que ela faz:** "quais as tarefas da família hoje?" (com as atrasadas), "tarefas pendentes da família",
+  "cria a tarefa comprar leite pra sexta às 15h", "terminei a tarefa tirar o lixo" (recorrente: abre a próxima,
+  como o app), "passa a tarefa X pra sábado", "apaga a tarefa X" (exclusão suave). Tudo com o "desfaz" da Ive;
+  mudar e apagar ela confirma por voz antes.
+- **Regras do app:** a família da pessoa; privadas só de quem criou; mudar só quem criou ou o admin; dependente vira
+  pedido de aprovação (coleção `approvals`), como no app.
+- **Segurança:** token por aparelho gerado em Configurações › Assistente Ive (mostrado uma vez, guardado só como
+  SHA-256, revogável); cada pedido assinado com HMAC-SHA256, carimbo de até 5 min e `X-Ive-Request` único
+  (`ivePedidos`, com TTL); 60 pedidos/min por token. `iveTokens` e `ivePedidos` fechadas para o app pelo
+  `match /{document=**}`.
+- **Versão web:** o endereço do site vai em `IVE_APP_ORIGINS` no `functions/.env` (CORS das rotas de token).
+- **Publicar:** `firebase deploy --only functions:ive,firestore:indexes`. Testes: `npm test --prefix functions`.
