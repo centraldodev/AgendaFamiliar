@@ -48,3 +48,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# credentials / keystore dumps (keep local only)
+client_secret_*.json
+*keystore*.txt
