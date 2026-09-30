@@ -15,8 +15,9 @@ exports.FICHA = {
     titulo: "Agenda Familiar",
     descricao: "Tarefas da família: as de hoje, pendentes, criar, concluir, remarcar e apagar.",
     tipo: "app",
-    versao: "1",
+    versao: "2",
     base: "https://us-central1-agendafamiliarkotlin.cloudfunctions.net/ive",
+    apelidos: ["agenda familiar", "agenda da familia", "app de agenda", "tarefas da familia"],
     autenticacao: { tipo: "token", assinatura: true },
     acoes: {
         tarefas: {
@@ -28,12 +29,15 @@ exports.FICHA = {
                 `^o\\s+que\\s+tem\\s+na\\s+agenda\\s+(?:da\\s+familia|familiar)(?:\\s+(?:(?:de|pra|para|da)\\s+)?(?P<quando>${DIA}|essa\\s+semana|semana))?$`,
             ],
             exemplos: ["quais as tarefas da família hoje", "o que tem na agenda da família amanhã", "tarefas da família essa semana"],
+            palavras: ["tarefas da familia", "agenda da familia", "agenda familiar"],
+            papel: "agenda_do_dia",
         },
         tarefas_pendentes: {
             descricao: "dizer todas as tarefas pendentes da família",
             metodo: "GET", caminho: "/tarefas/pendentes", efeito: "leitura",
             frases: ["^(?:quais\\s+(?:sao\\s+)?)?(?:as\\s+)?tarefas\\s+(?:pendentes|abertas|atrasadas)\\s+da\\s+familia$"],
             exemplos: ["quais são as tarefas pendentes da família", "tarefas atrasadas da família"],
+            palavras: ["pendentes da familia", "atrasadas da familia"],
         },
         criar_tarefa: {
             descricao: "criar uma tarefa na agenda da família",

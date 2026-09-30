@@ -144,9 +144,10 @@ test("tarefas de hoje falam curto, com as atrasadas; privadas dos outros não ap
   const { base, fechar } = await servidor(repo);
   try {
     const hoje = await pedir(base, token, "GET", "/tarefas?quando=hoje");
-    assert.equal(hoje.corpo.fala, "Hoje, 2 tarefas: Dentista às 15h30 e Comprar leite. Tem 1 atrasada: Pagar luz dia 28/9.");
+    assert.equal(hoje.corpo.fala, "Hoje, 2 tarefas da família: Dentista às 15h30 e Comprar leite. Tem 1 atrasada: Pagar luz dia 28/9.");
     const amanha = await pedir(base, token, "GET", "/tarefas?quando=amanha");
-    assert.equal(amanha.corpo.fala, "Amanhã, 1 tarefa: Mercado.");
+    assert.equal(amanha.corpo.fala, "Amanhã, 1 tarefa da família: Mercado.");
+    assert.equal(amanha.corpo.vazio, false);
     assert.equal((await pedir(base, token, "GET", "/tarefas/pendentes")).corpo.total, 4);
   } finally { fechar(); }
 });

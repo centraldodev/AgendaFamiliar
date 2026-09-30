@@ -245,11 +245,12 @@ function createIveApp(deps) {
             rotulo = data === dia ? "Hoje" : (0, agenda_1.falarData)(data, dia).replace(/^./, (c) => c.toUpperCase());
         }
         const comData = rotulo === "Nos próximos 7 dias" || rotulo === "Pendentes";
-        const partes = [alvo.length ? `${rotulo}, ${alvo.length === 1 ? "1 tarefa" : `${alvo.length} tarefas`}: ${lista(alvo, comData)}.`
+        const partes = [alvo.length ? `${rotulo}, ${alvo.length === 1 ? "1 tarefa da família" : `${alvo.length} tarefas da família`}: ${lista(alvo, comData)}.`
                 : `${rotulo}, nada na agenda da família.`];
         if (atrasadas.length)
             partes.push(`${atrasadas.length === 1 ? "Tem 1 atrasada" : `Tem ${atrasadas.length} atrasadas`}: ${lista(atrasadas, true)}.`);
         res.json({ fala: partes.join(" "), total: alvo.length, atrasadas: atrasadas.length,
+            vazio: !alvo.length && !atrasadas.length, // a Ive não repete "nada" ao juntar com a agenda dela
             itens: alvo.slice(0, 20).map((t) => ({ titulo: t.title })) });
     });
     ive.get("/tarefas/pendentes", listar("pendentes"));
