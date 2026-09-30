@@ -13,10 +13,11 @@ export const FICHA = {
   titulo: "Agenda Familiar",
   descricao: "Tarefas da família: as de hoje, pendentes, criar, concluir, remarcar e apagar.",
   tipo: "app",
-  versao: "2",
+  versao: "3",
   base: "https://us-central1-agendafamiliarkotlin.cloudfunctions.net/ive",
   apelidos: ["agenda familiar", "agenda da familia", "app de agenda", "tarefas da familia"],
   autenticacao: { tipo: "token", assinatura: true },
+  painel: { caminho: "/painel", minutos: 10 },  // a Ive busca as tarefas de antemão e responde na hora
   acoes: {
     tarefas: {
       descricao: "dizer as tarefas da família de um dia (hoje, amanhã, um dia da semana) ou da semana",

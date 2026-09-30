@@ -225,3 +225,24 @@ test("tokens pelo app: cria (uma vez), lista sem hash, revoga", async () => {
     assert.equal((await chamar("DELETE", `/tokens/${criado.id}`)).status, 204);
   } finally { fechar(); }
 });
+
+test("painel: os dias todos numa leitura só, iguais à rota", async () => {
+  const repo = familia();
+  const token = tokenDe(repo, "ana");
+  const hoje = AGORA.toISOString().slice(0, 10);
+  repo.d.tarefas.push(tarefa("t1", "comprar leite", hoje), tarefa("t2", "dentista", "2020-01-01"));
+  let leituras = 0;
+  const ler = repo.tarefas;
+  repo.tarefas = async (p) => { leituras += 1; return ler(p); };
+  const { base, fechar } = await servidor(repo);
+  try {
+    const painel = await pedir(base, token, "GET", "/painel");
+    assert.equal(painel.status, 200);
+    assert.equal(leituras, 1);
+    const achar = (acao, quando) => painel.corpo.respostas.find((r) => r.acao === acao && r.args.quando === quando).dados;
+    assert.deepEqual(achar("tarefas", "hoje"), (await pedir(base, token, "GET", "/tarefas?quando=hoje")).corpo);
+    assert.deepEqual(achar("tarefas", undefined), achar("tarefas", "hoje"));  // sem dia: hoje
+    assert.deepEqual(achar("tarefas", "amanha"), (await pedir(base, token, "GET", "/tarefas?quando=amanha")).corpo);
+    assert.ok(painel.corpo.respostas.some((r) => r.acao === "tarefas_pendentes"));
+  } finally { fechar(); }
+});

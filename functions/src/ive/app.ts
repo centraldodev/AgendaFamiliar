@@ -213,12 +213,12 @@ export function createIveApp(deps: Dependencias) {
   const ive = express.Router();
   ive.use(etapa(async (req, res) => { res.locals.uid = await daIve(req, res); }), porToken);
 
-  const listar = (fixo?: string) => rota(async (req, res) => {
-    const p = await quem(res.locals.uid);
-    const dia = hoje();
-    const quando = normalizar(fixo || String(req.query.quando || "hoje"));
-    const pendentes = (await repo.tarefas(p)).filter((t) => visivel(t, p) && !t.completed)
-      .sort((a, b) => (a.dueDate + (a.dueTime || "99")).localeCompare(b.dueDate + (b.dueTime || "99")));
+  // A resposta de um dia (ou da semana, ou das pendentes) sobre as tarefas já lidas: a rota lê uma vez por pedido e o
+  // /painel lê uma vez para todos os dias (a Ive guarda e responde na hora; ive-app/1 "painel").
+  const pendentesDe = async (p: Awaited<ReturnType<typeof quem>>) => (await repo.tarefas(p))
+    .filter((t) => visivel(t, p) && !t.completed)
+    .sort((a, b) => (a.dueDate + (a.dueTime || "99")).localeCompare(b.dueDate + (b.dueTime || "99")));
+  const tarefasDe = (pendentes: Tarefa[], dia: string, quando: string) => {
     const lista = (itens: Tarefa[], comData: boolean) => {
       const ditas = itens.slice(0, DITAS).map((t) => falarTarefa(t, dia, comData));
       const mais = itens.length > DITAS ? ` e mais ${itens.length - DITAS}` : "";
@@ -249,10 +249,24 @@ export function createIveApp(deps: Dependencias) {
       const ditas = nomes.length === 2 && !mais ? `${nomes[0]} e ${nomes[1]}` : nomes.join(", ") + mais;
       partes.push(`${atrasadas.length === 1 ? "Tem 1 atrasada" : `Tem ${atrasadas.length} atrasadas`}: ${ditas}.`);
     }
-    res.json({ fala: partes.join(" "), total: alvo.length, atrasadas: atrasadas.length,
-               vazio: !alvo.length && !atrasadas.length,  // a Ive não repete "nada" ao juntar com a agenda dela
-               itens: alvo.slice(0, 20).map((t) => ({ titulo: t.title })) });
+    return { fala: partes.join(" "), total: alvo.length, atrasadas: atrasadas.length,
+             vazio: !alvo.length && !atrasadas.length,  // a Ive não repete "nada" ao juntar com a agenda dela
+             itens: alvo.slice(0, 20).map((t) => ({ titulo: t.title })) };
+  };
+  const listar = (fixo?: string) => rota(async (req, res) => {
+    const p = await quem(res.locals.uid);
+    res.json(tarefasDe(await pendentesDe(p), hoje(), normalizar(fixo || String(req.query.quando || "hoje"))));
   });
+  const DIAS_DO_PAINEL = ["hoje", "amanha", "semana", "pendentes", "domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+  ive.get("/painel", rota(async (_req, res) => {
+    const p = await quem(res.locals.uid);
+    const pendentes = await pendentesDe(p);
+    const dia = hoje();
+    const respostas = DIAS_DO_PAINEL.map((quando) => ({ acao: "tarefas", args: { quando }, dados: tarefasDe(pendentes, dia, quando) }));
+    respostas.push({ acao: "tarefas", args: {} as { quando: string }, dados: tarefasDe(pendentes, dia, "hoje") },  // sem dia: hoje
+                   { acao: "tarefas_pendentes", args: {} as { quando: string }, dados: tarefasDe(pendentes, dia, "pendentes") });
+    res.json({ respostas });
+  }));
   ive.get("/tarefas/pendentes", listar("pendentes"));
   ive.get("/tarefas", listar());
 
