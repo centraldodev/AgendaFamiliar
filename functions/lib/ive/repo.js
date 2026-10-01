@@ -103,6 +103,30 @@ function firestoreRepo(db) {
                 status: "pending", createdAt: firestore_1.FieldValue.serverTimestamp(),
             });
         },
+        async membros(familyId) {
+            const snap = await db.collection("users").where("familyId", "==", familyId).get();
+            return snap.docs.map((doc) => {
+                const d = doc.data();
+                const role = ["admin", "parent", "dependent"].includes(d.role) ? d.role : undefined;
+                return { uid: doc.id, nome: String(d.displayName || String(d.email || "").split("@")[0] || ""), role };
+            });
+        },
+        async mudarMembro(uid, mudanca) {
+            const dados = { ...mudanca };
+            Object.keys(dados).forEach((k) => dados[k] === undefined && delete dados[k]);
+            await db.collection("users").doc(uid).update(dados);
+        },
+        async aprovacoes(familyId) {
+            const snap = await db.collection("approvals").where("familyId", "==", familyId).where("status", "==", "pending").get();
+            return snap.docs.map((doc) => {
+                const d = doc.data();
+                return { id: doc.id, taskId: String(d.taskId || ""), requestedBy: String(d.requestedBy || ""),
+                    userName: String(d.userName || ""), action: d.action, data: d.data || {}, createdAt: iso(d.createdAt) };
+            }).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+        },
+        async responderAprovacao(id, status) {
+            await db.collection("approvals").doc(id).update({ status }); // as regras do app: só o status muda
+        },
         async criarToken(uid, nome, hash) {
             const ref = await db.collection("iveTokens").add({ hash, uid, nome, criadoEm: firestore_1.FieldValue.serverTimestamp(), usadoEm: null, revogado: false });
             return ref.id;

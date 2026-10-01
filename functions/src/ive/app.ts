@@ -12,15 +12,23 @@ import express, { NextFunction, Request, Response } from "express";
 import { rateLimit } from "express-rate-limit";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
-  acharPorNome, categoriaDe, escreverData, falarData, falarTarefa, lerData, normalizar, Pessoa, podeMudar,
-  proximaData, somarDias, Tarefa, visivel,
+  acharPorNome, escreverData, falarData, falarTarefa, lerData, normalizar, Pessoa, podeMudar,
+  proximaData, Recorrencia, somarDias, Tarefa, visivel,
 } from "./agenda";
+import {
+  Categoria, escolher, falarRepeticao, lerCategoria, lerPrivada, lerRepeticao, lerSubtarefas, nomeDaCategoria,
+  perguntaCategoria, perguntaQual, Repeticao,
+} from "./campos";
 import { FICHA } from "./ficha";
-import type { Repo } from "./repo";
+import type { Aprovacao, Membro, Mudanca, Repo } from "./repo";
 
 export class Recusa extends Error {
-  constructor(public status: number, public fala: string) { super(fala); }
+  constructor(public status: number, public fala: string, public falta?: string) { super(fala); }
 }
+
+/** Faltou um dado (ou não deu para entender): a Ive pergunta e manda de novo com a resposta nesse campo. */
+const pergunta = (falta: string, fala: string) => new Recusa(422, fala, falta);
+const maiuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export interface Dependencias {
   repo: Repo;
@@ -140,14 +148,18 @@ export function createIveApp(deps: Dependencias) {
     return p;
   }
 
-  async function acharPendente(p: Pessoa, nome: string, incluirFeitas = false): Promise<Tarefa> {
-    const tarefas = (await repo.tarefas(p)).filter((t) => visivel(t, p) && (incluirFeitas || !t.completed));
+  /** A tarefa pelo nome falado. Várias parecidas: pergunta qual ("qual": a data, a hora, a ordem ou o nome). */
+  async function acharPendente(p: Pessoa, nome: string, incluirFeitas = false, qual = ""): Promise<Tarefa> {
+    if (!nome) throw pergunta("tarefa", "Qual tarefa?");
+    const tarefas = (await repo.tarefas(p)).filter((t) => visivel(t, p) && (incluirFeitas || !t.completed))
+      .sort((a, b) => (a.dueDate + (a.dueTime || "99")).localeCompare(b.dueDate + (b.dueTime || "99")));
     const { tarefa, varias } = acharPorNome(tarefas, nome);
     if (varias) {
-      const nomes = varias.slice(0, DITAS).map((t) => falarTarefa(t, hoje()));
-      throw new Recusa(409, `Tem ${varias.length} parecidas: ${nomes.join(", ")}. Qual delas?`);
+      const escolhida = qual ? escolher(varias, qual, (d) => dataFalada(d, hoje()), (h) => horaFalada(h)) : null;
+      if (escolhida) return escolhida;
+      throw pergunta("qual", (qual ? "Não consegui saber qual. " : "") + perguntaQual(varias, hoje()));
     }
-    if (!tarefa) throw new Recusa(404, `Não achei a tarefa ${texto(nome, 60)}.`);
+    if (!tarefa) throw pergunta("tarefa", `Não achei a tarefa ${texto(nome, 60)}. Qual o nome dela?`);
     return tarefa;
   }
 
@@ -265,47 +277,201 @@ export function createIveApp(deps: Dependencias) {
     const respostas = DIAS_DO_PAINEL.map((quando) => ({ acao: "tarefas", args: { quando }, dados: tarefasDe(pendentes, dia, quando) }));
     respostas.push({ acao: "tarefas", args: {} as { quando: string }, dados: tarefasDe(pendentes, dia, "hoje") },  // sem dia: hoje
                    { acao: "tarefas_pendentes", args: {} as { quando: string }, dados: tarefasDe(pendentes, dia, "pendentes") });
+    if (p.role === "admin") {
+      const itens = await pedidos(p);
+      respostas.push({ acao: "aprovacoes", args: {} as { quando: string },
+                       dados: { fala: falarPedidos(itens), total: itens.length, vazio: !itens.length, itens: itens.map((i) => ({ titulo: i.texto })) } as never });
+    }
     res.json({ respostas });
   }));
   ive.get("/tarefas/pendentes", listar("pendentes"));
   ive.get("/tarefas", listar());
 
+  // ---------------------------------------------------------------- criar e editar: os campos de uma tarefa
+
+  const horaAgora = () => { const a = agora(); return `${String(a.getHours()).padStart(2, "0")}:${String(a.getMinutes()).padStart(2, "0")}`; };
+  const PERGUNTA_DATA = "Pra quando é? Pode ser hoje, amanhã, sexta ou dia 12.";
+  const PERGUNTA_REPETICAO = "Não entendi a repetição. Pode ser todo dia, toda semana, toda segunda e quarta, todo mês, todo ano, ou não repete.";
+  const codigoRepeticao = (t: Pick<Tarefa, "recurrence" | "weekDays">) =>
+    t.recurrence === "custom_weekly" ? `custom_weekly:${(t.weekDays || []).join(",")}` : t.recurrence || "none";
+
+  function lerHora(falada: unknown): string | null {
+    try {
+      return horaFalada(falada);
+    } catch {
+      throw pergunta("hora", "Não entendi o horário. Que horas? Pode ser 15h ou 3 da tarde.");
+    }
+  }
+
+  /** "pra sexta às 15h, em Saúde, toda segunda, com 2 subtarefas, só pra você": o que mudou ou foi criado. */
+  function descrever(c: { dueDate?: string; dueTime?: string | null; category?: string; recurrence?: Repeticao;
+                          subtasks?: unknown[]; isPrivate?: boolean; title?: string }, daFamilia: Categoria[]): string {
+    const partes: string[] = [];
+    if (c.title) partes.push(`com o nome ${c.title}`);
+    if (c.dueDate) partes.push(`pra ${falarTarefa({ title: "", dueDate: c.dueDate, dueTime: c.dueTime } as Tarefa, hoje()).trim()}`);
+    else if (c.dueTime) partes.push(`às ${falarTarefa({ title: "", dueDate: "", dueTime: c.dueTime } as Tarefa, hoje()).replace(/^.*às /, "").trim()}`);
+    if (c.category) partes.push(`em ${nomeDaCategoria(c.category, daFamilia)}`);
+    if (c.recurrence) partes.push(falarRepeticao(c.recurrence) || "sem repetir");
+    if (c.subtasks) partes.push(c.subtasks.length ? `com ${c.subtasks.length === 1 ? "1 subtarefa" : `${c.subtasks.length} subtarefas`}` : "sem subtarefas");
+    if (c.isPrivate !== undefined) partes.push(c.isPrivate ? "só pra você" : "pra família toda");
+    return partes.join(", ");
+  }
+
+  // Criar: título, data, categoria são obrigatórios (a Ive pergunta); sem hora, a hora de agora; pública se a pessoa
+  // não disser; repetição e subtarefas, se falar.
   ive.post("/tarefas", rota(async (req, res) => {
     const p = await quem(res.locals.uid);
-    const falado = texto(req.body?.titulo, 120);
-    if (!falado) throw new Recusa(422, "Faltou o nome da tarefa.");
-    const titulo = falado.charAt(0).toUpperCase() + falado.slice(1);  // a fala chega em minúsculas: como se digita no app
-    const dia = req.body?.quando ? dataFalada(String(req.body.quando), hoje()) : hoje();
-    if (!dia) throw new Recusa(422, "Não entendi a data.");
-    const hora = horaFalada(req.body?.hora);
-    const categoria = categoriaDe(texto(req.body?.categoria, 40), await repo.categorias(p.familyId!));
-    const privada = req.body?.privada === true || req.body?.privada === "true";
-    const id = await repo.criar(p, { title: titulo, dueDate: dia, dueTime: hora, category: categoria, isPrivate: privada });
-    const quando = falarTarefa({ title: "", dueDate: dia, dueTime: hora } as Tarefa, hoje()).trim();
-    res.status(201).json({ id, titulo, fala: `Criei a tarefa ${titulo} pra ${quando}${privada ? ", só pra você" : ""}.` });
+    const corpo = req.body || {};
+    const falado = texto(corpo.titulo, 120);
+    if (!falado) throw pergunta("titulo", "Qual o nome da tarefa?");
+    const titulo = maiuscula(falado);  // a fala chega em minúsculas: como se digita no app
+    if (!texto(corpo.quando, 40)) throw pergunta("quando", PERGUNTA_DATA);
+    const dia = dataFalada(texto(corpo.quando, 40), hoje());
+    if (!dia) throw pergunta("quando", `Não entendi a data. ${PERGUNTA_DATA}`);
+    const hora = texto(String(corpo.hora ?? ""), 20) ? lerHora(corpo.hora) : horaAgora();
+    const daFamilia = await repo.categorias(p.familyId!);
+    if (!texto(corpo.categoria, 40)) throw pergunta("categoria", perguntaCategoria(titulo, daFamilia));
+    const categoria = lerCategoria(texto(corpo.categoria, 40), titulo, daFamilia);
+    if (!categoria) throw pergunta("categoria", perguntaCategoria(titulo, daFamilia, "Não achei essa categoria. "));
+    const privada = corpo.privada === undefined || corpo.privada === "" ? false : lerPrivada(corpo.privada);
+    if (privada === null) throw pergunta("privada", "Ela é só pra você ou pra família toda?");
+    const repeticao = texto(corpo.recorrencia, 60) ? lerRepeticao(texto(corpo.recorrencia, 60)) : { recurrence: "none" as const };
+    if (!repeticao) throw pergunta("recorrencia", PERGUNTA_REPETICAO);
+    const subtarefas = texto(corpo.subtarefas, 600) ? lerSubtarefas(texto(corpo.subtarefas, 600), categoria.id) || [] : [];
+    const id = await repo.criar(p, { title: titulo, dueDate: dia, dueTime: hora, category: categoria.id, isPrivate: privada,
+                                     recurrence: repeticao.recurrence, weekDays: repeticao.weekDays, subtasks: subtarefas });
+    const resumo = descrever({ dueDate: dia, dueTime: hora, category: categoria.id,
+                               recurrence: repeticao.recurrence === "none" ? undefined : repeticao,
+                               subtasks: subtarefas.length ? subtarefas : undefined, isPrivate: privada || undefined }, daFamilia);
+    res.status(201).json({ id, titulo, fala: `Criei a tarefa ${titulo} ${resumo}.` });
+  }));
+
+  const CAMPOS = ["novo_titulo", "quando", "hora", "categoria", "privada", "recorrencia", "subtarefas"];
+
+  /** A resposta a "O que muda?": "pra sexta às 15h", "categoria saúde", "privada", "toda segunda", "nome pra X". */
+  function lerOQue(falado: string): Record<string, string> {
+    const t = normalizar(falado);
+    const achado: Record<string, string> = {};
+    const nome = /\b(?:o\s+)?(?:nome|t[ií]tulo)\s+(?:pra|para|de)\s+(.+)$/i.exec(falado) || /\b(?:chamar|chama)\s+(.+)$/i.exec(falado);
+    if (nome) return { novo_titulo: nome[1].trim() };
+    const subs = /\bsubtarefas?\b\s*(.*)$/i.exec(falado);
+    if (subs) return { subtarefas: subs[1].trim() || "nenhuma" };
+    const categoria = /\bcategoria\s+(?:pra\s+|para\s+)?(.+)$/.exec(t);
+    if (categoria) achado.categoria = categoria[1];
+    if (/\b(privada|privado|publica|publico|so pra mim|pra familia)\b/.test(t)) achado.privada = t;
+    if (/\b(todo|toda|todos|todas|repet|diari|semanal|mensal|anual|dias uteis|fim de semana)/.test(t)) achado.recorrencia = t;
+    const hora = /\bas\s+(\d{1,2}(?:\s*(?:h|:)\s*\d{0,2})?(?:\s*horas?)?(?:\s+da\s+(?:manha|tarde|noite))?)/.exec(t);
+    if (hora) achado.hora = hora[1];
+    const dia = t.replace(/\bas\s+\d.*$/, "").replace(/^(?:muda|mude|passa|passe|coloca|poe)\s+/, "").replace(/^(?:pra|para)\s+/, "").trim();
+    if (!achado.recorrencia && !achado.categoria && !achado.privada && dia && dataFalada(dia, hoje())
+        && /\d|hoje|amanha|domingo|segunda|terca|quarta|quinta|sexta|sabado/.test(dia)) achado.quando = dia;
+    return achado;
+  }
+
+  // Editar: os mesmos campos de criar, na tarefa achada pelo nome (várias parecidas: pergunta qual).
+  ive.patch("/tarefas/editar", rota(async (req, res) => {
+    const p = await quem(res.locals.uid);
+    const t = await acharPendente(p, texto(req.body?.tarefa, 120), false, texto(req.body?.qual, 60));
+    let corpo: Record<string, unknown> = req.body || {};
+    const tem = () => CAMPOS.some((c) => texto(String(corpo[c] ?? ""), 600));
+    if (!tem() && texto(corpo.o_que, 200)) corpo = { ...corpo, ...lerOQue(texto(corpo.o_que, 200)) };
+    if (!tem()) {
+      throw pergunta("o_que", `${texto(corpo.o_que, 200) ? "Não entendi. " : ""}O que muda na tarefa ${t.title}? `
+        + "O nome, o dia, a hora, a categoria, se é privada, a repetição ou as subtarefas.");
+    }
+    const daFamilia = await repo.categorias(p.familyId!);
+    const mudanca: Mudanca = {};
+    const valor = (c: string, max: number) => texto(String(corpo[c] ?? ""), max);
+    if (valor("novo_titulo", 120)) mudanca.title = maiuscula(valor("novo_titulo", 120));
+    if (valor("quando", 40)) {
+      const dia = dataFalada(valor("quando", 40), hoje());
+      if (!dia) throw pergunta("quando", `Não entendi a data. ${PERGUNTA_DATA}`);
+      mudanca.dueDate = dia;
+    }
+    if (valor("hora", 20)) mudanca.dueTime = lerHora(valor("hora", 20));
+    if (valor("categoria", 40)) {
+      const categoria = lerCategoria(valor("categoria", 40), mudanca.title || t.title, daFamilia);
+      if (!categoria) throw pergunta("categoria", perguntaCategoria(mudanca.title || t.title, daFamilia, "Não achei essa categoria. "));
+      mudanca.category = categoria.id;
+    }
+    if (corpo.privada !== undefined && corpo.privada !== "") {
+      const privada = lerPrivada(corpo.privada);
+      if (privada === null) throw pergunta("privada", "Ela fica só pra você ou pra família toda?");
+      mudanca.isPrivate = privada;
+      if (privada && !t.isPrivate) mudanca.createdBy = p.uid;  // como o app: ficar privada passa a tarefa para quem mudou
+    }
+    let repeticao: Repeticao | undefined;
+    if (valor("recorrencia", 60)) {
+      repeticao = lerRepeticao(valor("recorrencia", 60)) || undefined;
+      if (!repeticao) throw pergunta("recorrencia", PERGUNTA_REPETICAO);
+      mudanca.recurrence = repeticao.recurrence;
+      mudanca.weekDays = repeticao.weekDays || [];
+    }
+    if (valor("subtarefas", 600)) mudanca.subtasks = lerSubtarefas(valor("subtarefas", 600), mudanca.category || t.category) || [];
+    if (!(await permitido(p, t, "update", mudanca as Record<string, unknown>, res, `mudar ${t.title}`))) return;
+    await repo.mudar(p, t.id, mudanca);
+    const resumo = descrever({ title: mudanca.title, dueDate: mudanca.dueDate, dueTime: mudanca.dueTime, category: mudanca.category,
+                               recurrence: repeticao, subtasks: mudanca.subtasks, isPrivate: mudanca.isPrivate }, daFamilia);
+    res.json({ id: t.id, titulo: mudanca.title || t.title, fala: `Mudei a tarefa ${t.title}: ${resumo}.`,
+               // o "desfaz" da Ive: os valores de antes (voltar_tarefa)
+               titulo_anterior: t.title, data_anterior: t.dueDate, hora_anterior: t.dueTime || "-", categoria_anterior: t.category,
+               privada_anterior: t.isPrivate ? "sim" : "nao", recorrencia_anterior: codigoRepeticao(t), dono_anterior: t.createdBy });
+  }));
+
+  // O "desfaz" da edição: os valores guardados, como estavam (as subtarefas ficam como a edição deixou).
+  ive.patch("/tarefas/:id/voltar", rota(async (req, res) => {
+    const p = await quem(res.locals.uid);
+    const t = await porId(p, String(req.params.id));
+    const c = req.body || {};
+    const [recurrence, dias] = String(c.recorrencia || "none").split(":");
+    const mudanca: Mudanca = {
+      title: texto(c.titulo, 120) || t.title,
+      dueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(c.quando)) ? String(c.quando) : t.dueDate,
+      dueTime: c.hora === "-" ? null : /^\d{2}:\d{2}$/.test(String(c.hora)) ? String(c.hora) : t.dueTime || null,
+      category: texto(c.categoria, 60) || t.category, isPrivate: c.privada === "sim",
+      recurrence: (["none", "daily", "weekly", "custom_weekly", "monthly", "yearly"].includes(recurrence) ? recurrence : t.recurrence) as Recorrencia,
+      weekDays: dias ? dias.split(",").map(Number).filter((d) => d >= 0 && d <= 6) : [],
+    };
+    if (/^[A-Za-z0-9_-]{1,128}$/.test(String(c.dono || ""))) mudanca.createdBy = String(c.dono);
+    if (!(await permitido(p, t, "update", mudanca as Record<string, unknown>, res, `voltar ${t.title} como estava`))) return;
+    await repo.mudar(p, t.id, mudanca);
+    res.json({ id: t.id, fala: `Voltei a tarefa ${mudanca.title} como estava.` });
+  }));
+
+  // Pular (só recorrente): vai para a próxima data, como o botão "pular" do app (store/taskStore.ts skipTask).
+  ive.post("/tarefas/pular", rota(async (req, res) => {
+    const p = await quem(res.locals.uid);
+    const t = await acharPendente(p, texto(req.body?.tarefa, 120), false, texto(req.body?.qual, 60));
+    if (t.recurrence === "none") throw new Recusa(409, `A tarefa ${t.title} não se repete, então não dá pra pular. Posso mudar a data ou apagar.`);
+    const data = proximaData(t.dueDate, t.recurrence, t.weekDays);
+    const mudanca = { dueDate: data, completed: false, subtasks: t.subtasks };
+    if (!(await permitido(p, t, "update", mudanca, res, `pular ${t.title}`))) return;
+    await repo.mudar(p, t.id, mudanca);
+    res.json({ id: t.id, data_anterior: t.dueDate, hora_anterior: t.dueTime || "-",
+               fala: `Pulei ${t.title}. A próxima é ${falarTarefa({ ...t, title: "", dueDate: data }, hoje()).trim()}.` });
   }));
 
   ive.post("/tarefas/concluir", rota(async (req, res) => {
     const p = await quem(res.locals.uid);
-    const t = await acharPendente(p, texto(req.body?.tarefa, 120));
+    const t = await acharPendente(p, texto(req.body?.tarefa, 120), false, texto(req.body?.qual, 60));
     if (!(await permitido(p, t, "complete", { completed: true }, res, `concluir ${t.title}`))) return;
-    let proxima = "";
-    let fala = `Feito: ${t.title} concluída.`;
-    await repo.mudar(p, t.id, { completed: true });
-    if (t.recurrence !== "none") {
-      // Como o app (store/taskStore.ts, spawnNextRecurringOccurrence): fecha esta e abre a próxima
-      const data = proximaData(t.dueDate, t.recurrence, t.weekDays);
-      if (!t.recurrenceEndDate || data <= t.recurrenceEndDate) {
-        proxima = await repo.criar(p, {
-          title: t.title, description: t.description, dueDate: data, dueTime: t.dueTime || null, category: t.category,
-          isPrivate: !!t.isPrivate, recurrence: t.recurrence, weekDays: t.weekDays, recurrenceEndDate: t.recurrenceEndDate,
-          subtasks: (t.subtasks || []).map((s) => ({ ...s, completed: false })),
-        });
-        fala += ` A próxima é ${falarData(data, hoje())}.`;
-      }
-    }
-    res.json({ id: t.id, titulo: t.title, proxima: proxima || "-", fala });
+    const { proxima, fala } = await concluir(p, t);
+    res.json({ id: t.id, titulo: t.title, proxima: proxima || "-", fala: `Feito: ${t.title} concluída.${fala}` });
   }));
+
+  /** Conclui; recorrente abre a próxima, como o app (store/taskStore.ts, spawnNextRecurringOccurrence). */
+  async function concluir(p: Pessoa, t: Tarefa): Promise<{ proxima: string; fala: string }> {
+    await repo.mudar(p, t.id, { completed: true });
+    if (t.recurrence === "none") return { proxima: "", fala: "" };
+    const data = proximaData(t.dueDate, t.recurrence, t.weekDays);
+    if (t.recurrenceEndDate && data > t.recurrenceEndDate) return { proxima: "", fala: "" };
+    const proxima = await repo.criar(p, {
+      title: t.title, description: t.description, dueDate: data, dueTime: t.dueTime || null, category: t.category,
+      isPrivate: !!t.isPrivate, recurrence: t.recurrence, weekDays: t.weekDays, recurrenceEndDate: t.recurrenceEndDate,
+      subtasks: (t.subtasks || []).map((s) => ({ ...s, completed: false })),
+    });
+    return { proxima, fala: ` A próxima é ${falarData(data, hoje())}.` };
+  }
 
   ive.post("/tarefas/:id/reabrir", rota(async (req, res) => {
     const p = await quem(res.locals.uid);
@@ -324,21 +490,22 @@ export function createIveApp(deps: Dependencias) {
   const remarcar = (achar: (p: Pessoa, req: Request) => Promise<Tarefa>) => rota(async (req, res) => {
     const p = await quem(res.locals.uid);
     const t = await achar(p, req);
-    const dia = dataFalada(String(req.body?.quando || ""), hoje());
-    if (!dia) throw new Recusa(422, "Não entendi a nova data.");
-    const hora = req.body?.hora !== undefined ? horaFalada(req.body.hora) : t.dueTime || null;
+    if (!texto(String(req.body?.quando ?? ""), 40)) throw pergunta("quando", `Pra quando passo ${t.title}?`);
+    const dia = dataFalada(String(req.body.quando), hoje());
+    if (!dia) throw pergunta("quando", `Não entendi a nova data. ${PERGUNTA_DATA}`);
+    const hora = req.body?.hora !== undefined && req.body.hora !== "" ? lerHora(req.body.hora) : t.dueTime || null;
     if (!(await permitido(p, t, "update", { dueDate: dia, dueTime: hora }, res, `mudar ${t.title} de data`))) return;
     await repo.mudar(p, t.id, { dueDate: dia, dueTime: hora });
     const quando = falarTarefa({ title: "", dueDate: dia, dueTime: hora } as Tarefa, hoje()).trim();
     res.json({ id: t.id, data_anterior: t.dueDate, hora_anterior: t.dueTime || "-", fala: `Passei ${t.title} pra ${quando}.` });
   });
-  ive.patch("/tarefas/remarcar", remarcar((p, req) => acharPendente(p, texto(req.body?.tarefa, 120))));
+  ive.patch("/tarefas/remarcar", remarcar((p, req) => acharPendente(p, texto(req.body?.tarefa, 120), false, texto(req.body?.qual, 60))));
   ive.patch("/tarefas/:id/remarcar", remarcar((p, req) => porId(p, String(req.params.id))));
 
   ive.delete("/tarefas", rota(async (req, res) => {
     const p = await quem(res.locals.uid);
     const id = texto(req.query.id, 64);
-    const t = id ? await porId(p, id) : await acharPendente(p, texto(req.query.tarefa, 120), true);
+    const t = id ? await porId(p, id) : await acharPendente(p, texto(req.query.tarefa, 120), true, texto(req.query.qual, 60));
     if (!(await permitido(p, t, "delete", {}, res, `apagar ${t.title}`))) return;
     await repo.mudar(p, t.id, { deleted: true });  // exclusão suave, como o app: dá para desfazer
     res.json({ id: t.id, fala: `Apaguei a tarefa ${t.title}.` });
@@ -352,12 +519,148 @@ export function createIveApp(deps: Dependencias) {
     res.json({ id: t.id, fala: `A tarefa ${t.title} voltou.` });
   }));
 
+  // ---------------------------------------------------------------- aprovações (só o administrador, como no app)
+
+  const soAdmin = (p: Pessoa, o_que: string) => {
+    if (p.role !== "admin") throw new Recusa(403, `Só o administrador da família pode ${o_que}.`);
+  };
+  const lista = (itens: string[]) => (itens.length > 1 ? `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}` : itens.join(""));
+
+  function oQuePede(a: Aprovacao, tarefa: Tarefa | null): string {
+    const nome = tarefa?.title || "uma tarefa que não existe mais";
+    if (a.action === "delete") return `apagar ${nome}`;
+    if (a.action === "complete" || a.data?.completed === true) return `concluir ${nome}`;
+    if (typeof a.data?.dueDate === "string" && Object.keys(a.data).every((k) => ["dueDate", "dueTime", "completed", "subtasks"].includes(k)))
+      return `passar ${nome} pra ${falarData(a.data.dueDate as string, hoje())}`;
+    return `mudar ${nome}`;
+  }
+
+  async function pedidos(p: Pessoa): Promise<{ a: Aprovacao; tarefa: Tarefa | null; texto: string }[]> {
+    const pendentes = await repo.aprovacoes(p.familyId!);
+    return Promise.all(pendentes.map(async (a) => {
+      const tarefa = /^[A-Za-z0-9_-]{1,64}$/.test(a.taskId) ? await repo.tarefa(a.taskId) : null;
+      return { a, tarefa, texto: `${a.userName || "Alguém"} quer ${oQuePede(a, tarefa)}` };
+    }));
+  }
+
+  const falarPedidos = (itens: { texto: string }[]) => (itens.length
+    ? `${itens.length === 1 ? "Tem 1 pedido de aprovação" : `Tem ${itens.length} pedidos de aprovação`}: ${lista(itens.slice(0, DITAS).map((i) => i.texto))}`
+      + `${itens.length > DITAS ? ` e mais ${itens.length - DITAS}` : ""}.`
+    : "Nenhum pedido de aprovação.");
+
+  ive.get("/aprovacoes", rota(async (_req, res) => {
+    const p = await quem(res.locals.uid);
+    soAdmin(p, "ver as aprovações");
+    const itens = await pedidos(p);
+    res.json({ fala: falarPedidos(itens), total: itens.length, vazio: !itens.length, itens: itens.map((i) => ({ titulo: i.texto })) });
+  }));
+
+  const CAMPOS_APROVADOS = ["title", "dueDate", "dueTime", "category", "completed", "subtasks", "isPrivate", "recurrence",
+                           "weekDays", "recurrenceEndDate", "createdBy", "description"];
+
+  /** Aprovar faz o que foi pedido (como a tela Aprovações do app); recusar só fecha o pedido. */
+  ive.post("/aprovacoes/responder", rota(async (req, res) => {
+    const p = await quem(res.locals.uid);
+    soAdmin(p, "responder aprovações");
+    const todos = await pedidos(p);
+    if (!todos.length) throw new Recusa(404, "Não tem nenhum pedido de aprovação.");
+    const qual = normalizar(texto(req.body?.pedido, 120));
+    let escolhidos = todos;
+    if (/^(todos|todas|tudo)$/.test(qual)) escolhidos = todos;
+    else if (qual) {
+      const palavras = qual.split(" ").filter((w) => w.length >= 3 && !["pedido", "quer", "aprova", "recusa", "dela", "dele"].includes(w));
+      escolhidos = todos.filter((i) => palavras.every((w) => normalizar(i.texto).includes(w)));
+      if (!escolhidos.length) throw pergunta("pedido", `Não achei esse pedido. ${falarPedidos(todos)} Qual deles?`);
+    }
+    if (escolhidos.length > 1 && !/^(todos|todas|tudo)$/.test(qual))
+      throw pergunta("pedido", `${falarPedidos(escolhidos)} Qual deles? Ou todos?`);
+    const decisao = normalizar(texto(String(req.body?.decisao ?? ""), 40));
+    const aprova = /^(aprov|sim|pode|aceit|libera|autoriz|ok)/.test(decisao) ? true
+      : /^(recus|rejeit|nega|nao|bloque)/.test(decisao) ? false : null;
+    if (aprova === null) throw pergunta("decisao", `${escolhidos.length === 1 ? escolhidos[0].texto : falarPedidos(escolhidos)}. Aprovo ou recuso?`);
+    for (const { a, tarefa } of escolhidos) {
+      if (aprova && tarefa && !tarefa.deleted) {
+        if (a.action === "delete") await repo.mudar(p, tarefa.id, { deleted: true });
+        else if (a.action === "complete" || (a.data?.completed === true && !tarefa.completed)) await concluir(p, tarefa);
+        else {
+          const dados = Object.fromEntries(Object.entries(a.data || {}).filter(([k]) => CAMPOS_APROVADOS.includes(k)));
+          if ("deletedAt" in (a.data || {})) Object.assign(dados, { deleted: a.data.deletedAt !== null });
+          await repo.mudar(p, tarefa.id, dados as Mudanca);
+        }
+      }
+      await repo.responderAprovacao(a.id, aprova ? "approved" : "rejected");
+    }
+    const ditos = lista(escolhidos.slice(0, DITAS).map((i) => i.texto.replace(/ quer /, aprova ? " pode " : " não vai ")));
+    res.json({ total: escolhidos.length, fala: `${aprova ? "Aprovado" : "Recusado"}: ${ditos}${escolhidos.length > DITAS ? ` e mais ${escolhidos.length - DITAS}` : ""}.` });
+  }));
+
+  // ---------------------------------------------------------------- membros da família
+
+  const PAPEIS: Record<string, string> = { admin: "admin", parent: "responsável", dependent: "dependente" };
+
+  function acharMembro(membros: Membro[], nome: string): Membro {
+    if (!nome) throw pergunta("membro", "Qual pessoa da família?");
+    const alvo = normalizar(nome).replace(/^(?:a|o)\s+/, "");
+    for (const teste of [(n: string) => n === alvo, (n: string) => n.startsWith(alvo), (n: string) => n.includes(alvo)]) {
+      const achados = membros.filter((m) => teste(normalizar(m.nome)));
+      if (achados.length === 1) return achados[0];
+      if (achados.length > 1) throw pergunta("membro", `Tem ${achados.length} com esse nome: ${lista(achados.map((m) => m.nome))}. Qual?`);
+    }
+    throw pergunta("membro", `Não achei ${texto(nome, 40)} na família. Tem ${lista(membros.map((m) => m.nome))}. Quem?`);
+  }
+
+  ive.get("/membros", rota(async (_req, res) => {
+    const p = await quem(res.locals.uid);
+    const membros = await repo.membros(p.familyId!);
+    res.json({ total: membros.length, itens: membros.map((m) => ({ titulo: m.nome })),
+               fala: `Na família: ${lista(membros.map((m) => `${m.nome}${m.role ? ` (${PAPEIS[m.role]})` : ""}`))}.` });
+  }));
+
+  const renomear = (achar: (p: Pessoa, membros: Membro[], req: Request) => Membro) => rota(async (req, res) => {
+    const p = await quem(res.locals.uid);
+    const m = achar(p, await repo.membros(p.familyId!), req);
+    if (m.uid !== p.uid) soAdmin(p, "mudar o nome de outra pessoa");
+    const novo = texto(req.body?.nome, 60).split(" ").map(maiuscula).join(" ");
+    if (!novo) throw pergunta("nome", `Qual o novo nome de ${m.nome}?`);
+    await repo.mudarMembro(m.uid, { displayName: novo });
+    res.json({ id: m.uid, nome_anterior: m.nome, fala: `Pronto: ${m.nome} agora é ${novo}.` });
+  });
+  ive.patch("/membros/nome", renomear((_p, membros, req) => acharMembro(membros, texto(req.body?.membro, 60))));
+  ive.patch("/membros/:id/nome", renomear((_p, membros, req) => {
+    const m = membros.find((x) => x.uid === String(req.params.id));
+    if (!m) throw new Recusa(404, "Essa pessoa não está mais na família.");
+    return m;
+  }));
+
+  ive.delete("/membros", rota(async (req, res) => {
+    const p = await quem(res.locals.uid);
+    soAdmin(p, "tirar alguém da família");
+    const m = acharMembro(await repo.membros(p.familyId!), texto(req.query.membro, 60));
+    if (m.uid === p.uid) throw new Recusa(409, "Pra sair da família, use o app.");
+    await repo.mudarMembro(m.uid, { familyId: null, role: null });  // como o app (familyService.removeMemberFromFamily)
+    res.json({ id: m.uid, papel_anterior: m.role || "dependent", fala: `Tirei ${m.nome} da família.` });
+  }));
+
+  // O "desfaz" de tirar da família: volta com o mesmo papel, se a pessoa não entrou em outra família.
+  ive.post("/membros/:id/restaurar", rota(async (req, res) => {
+    const p = await quem(res.locals.uid);
+    soAdmin(p, "trazer alguém de volta pra família");
+    const uid = String(req.params.id);
+    const pessoa = /^[A-Za-z0-9_-]{1,128}$/.test(uid) ? await repo.pessoa(uid) : null;
+    if (!pessoa) throw new Recusa(404, "Não achei essa pessoa.");
+    if (pessoa.familyId && pessoa.familyId !== p.familyId) throw new Recusa(409, `${pessoa.nome} já está em outra família.`);
+    const papel = ["admin", "parent", "dependent"].includes(String(req.body?.papel)) ? req.body.papel : "dependent";
+    await repo.mudarMembro(uid, { familyId: p.familyId!, role: papel });
+    res.json({ id: uid, fala: `${pessoa.nome} voltou pra família.` });
+  }));
+
   app.use("/", ive);
   app.use((_req, res) => { res.status(404).json({ fala: "Não conheço essa ação." }); });
   app.use((erro: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const status = erro instanceof Recusa ? erro.status : 500;
     if (status >= 500) console.error(JSON.stringify({ event: "ive_error", type: erro instanceof Error ? erro.name : "unknown" }));
-    res.status(status).json({ fala: erro instanceof Recusa ? erro.fala : "Deu um problema aqui. Tenta de novo daqui a pouco." });
+    res.status(status).json({ fala: erro instanceof Recusa ? erro.fala : "Deu um problema aqui. Tenta de novo daqui a pouco.",
+                              ...(erro instanceof Recusa && erro.falta ? { falta: erro.falta } : {}) });
   });
   return app;
 }

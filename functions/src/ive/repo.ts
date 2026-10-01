@@ -15,7 +15,13 @@ export interface NovaTarefa {
   recurrence?: Tarefa["recurrence"]; weekDays?: number[]; recurrenceEndDate?: string; description?: string;
   subtasks?: Tarefa["subtasks"];
 }
-export type Mudanca = Partial<Pick<Tarefa, "completed" | "dueDate" | "dueTime" | "subtasks">> & { deleted?: boolean };
+export type Mudanca = Partial<Pick<Tarefa, "completed" | "dueDate" | "dueTime" | "subtasks" | "title" | "category"
+  | "isPrivate" | "recurrence" | "weekDays" | "recurrenceEndDate" | "createdBy">> & { deleted?: boolean };
+export interface Membro { uid: string; nome: string; role?: Papel }
+export interface Aprovacao {
+  id: string; taskId: string; requestedBy: string; userName: string; action: "update" | "delete" | "complete";
+  data: Record<string, unknown>; createdAt?: string;
+}
 
 export interface Repo {
   tokenPorHash(hash: string): Promise<(Token & { hash: string }) | null>;
@@ -28,6 +34,10 @@ export interface Repo {
   criar(p: Pessoa, nova: NovaTarefa): Promise<string>;
   mudar(p: Pessoa, id: string, mudanca: Mudanca): Promise<void>;
   pedirAprovacao(p: Pessoa, tarefaId: string, acao: "update" | "delete" | "complete", dados: Record<string, unknown>): Promise<void>;
+  membros(familyId: string): Promise<Membro[]>;
+  mudarMembro(uid: string, mudanca: { displayName?: string; familyId?: string | null; role?: Papel | null }): Promise<void>;
+  aprovacoes(familyId: string): Promise<Aprovacao[]>;                // só as pendentes
+  responderAprovacao(id: string, status: "approved" | "rejected"): Promise<void>;
   criarToken(uid: string, nome: string, hash: string): Promise<string>;
   tokens(uid: string): Promise<Token[]>;
   revogar(uid: string, id: string): Promise<boolean>;
@@ -118,6 +128,30 @@ export function firestoreRepo(db: Firestore): Repo {
         familyId: p.familyId, taskId: tarefaId, requestedBy: p.uid, userName: p.nome, action: acao, data: dados,
         status: "pending", createdAt: FieldValue.serverTimestamp(),
       });
+    },
+    async membros(familyId) {
+      const snap = await db.collection("users").where("familyId", "==", familyId).get();
+      return snap.docs.map((doc) => {
+        const d = doc.data();
+        const role: Papel | undefined = ["admin", "parent", "dependent"].includes(d.role) ? d.role : undefined;
+        return { uid: doc.id, nome: String(d.displayName || String(d.email || "").split("@")[0] || ""), role };
+      });
+    },
+    async mudarMembro(uid, mudanca) {
+      const dados: Record<string, unknown> = { ...mudanca };
+      Object.keys(dados).forEach((k) => dados[k] === undefined && delete dados[k]);
+      await db.collection("users").doc(uid).update(dados);
+    },
+    async aprovacoes(familyId) {
+      const snap = await db.collection("approvals").where("familyId", "==", familyId).where("status", "==", "pending").get();
+      return snap.docs.map((doc) => {
+        const d = doc.data();
+        return { id: doc.id, taskId: String(d.taskId || ""), requestedBy: String(d.requestedBy || ""),
+                 userName: String(d.userName || ""), action: d.action, data: d.data || {}, createdAt: iso(d.createdAt) };
+      }).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    },
+    async responderAprovacao(id, status) {
+      await db.collection("approvals").doc(id).update({ status });  // as regras do app: só o status muda
     },
     async criarToken(uid, nome, hash) {
       const ref = await db.collection("iveTokens").add({ hash, uid, nome, criadoEm: FieldValue.serverTimestamp(), usadoEm: null, revogado: false });

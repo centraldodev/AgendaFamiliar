@@ -71,7 +71,20 @@ function memoria() {
       return id;
     },
     async mudar(_p, id, m) { Object.assign(d.tarefas.find((t) => t.id === id), m); },
-    async pedirAprovacao(p, taskId, action, data) { d.aprovacoes.push({ by: p.uid, taskId, action, data }); },
+    async pedirAprovacao(p, taskId, action, data) {
+      d.aprovacoes.push({ id: `a${++seq}`, familyId: p.familyId, requestedBy: p.uid, userName: p.nome, by: p.uid, taskId, action, data, status: "pending" });
+    },
+    async membros(familyId) {
+      return Object.values(d.pessoas).filter((x) => x.familyId === familyId).map((x) => ({ uid: x.uid, nome: x.nome, role: x.role }));
+    },
+    async mudarMembro(uid, m) {
+      const x = d.pessoas[uid];
+      if (m.displayName !== undefined) x.nome = m.displayName;
+      if (m.familyId !== undefined) x.familyId = m.familyId;
+      if (m.role !== undefined) x.role = m.role;
+    },
+    async aprovacoes(familyId) { return d.aprovacoes.filter((a) => a.familyId === familyId && a.status === "pending"); },
+    async responderAprovacao(id, status) { d.aprovacoes.find((a) => a.id === id).status = status; },
     async criarToken(uid, nome, hash) { const id = `k${++seq}`; d.tokens.push({ id, uid, nome, hash, revogado: false }); return id; },
     async tokens(uid) { return d.tokens.filter((t) => t.uid === uid && !t.revogado); },
     async revogar(uid, id) { const t = d.tokens.find((x) => x.id === id && x.uid === uid); if (!t) return false; t.revogado = true; return true; },
@@ -179,7 +192,8 @@ test("dependente vira pedido de aprovação; quem não criou não muda", async (
     const leo = await pedir(base, tokenDe(repo, "leo"), "POST", "/tarefas/concluir", { tarefa: "lavar o carro" });
     assert.equal(leo.status, 202);
     assert.match(leo.corpo.fala, /Pedi pro administrador aprovar: concluir Lavar o carro/);
-    assert.deepEqual(repo.d.aprovacoes, [{ by: "leo", taskId: "a", action: "complete", data: { completed: true } }]);
+    assert.deepEqual(repo.d.aprovacoes.map(({ by, taskId, action, data }) => ({ by, taskId, action, data })),
+                     [{ by: "leo", taskId: "a", action: "complete", data: { completed: true } }]);
     assert.equal(repo.d.tarefas[0].completed, false);
     const bia = await pedir(base, tokenDe(repo, "bia"), "DELETE", "/tarefas?tarefa=lavar+o+carro");
     assert.equal(bia.status, 403);
@@ -192,7 +206,7 @@ test("criar, remarcar (e desfazer), apagar (e trazer de volta), nomes parecidos"
   const { base, fechar } = await servidor(repo);
   try {
     const criada = await pedir(base, token, "POST", "/tarefas", { titulo: "Vacina do Rex", quando: "sexta", hora: "15h", categoria: "pets" });
-    assert.equal(criada.corpo.fala, "Criei a tarefa Vacina do Rex pra sexta às 15h.");
+    assert.equal(criada.corpo.fala, "Criei a tarefa Vacina do Rex pra sexta às 15h, em Pets.");
     const t = repo.d.tarefas.find((x) => x.id === criada.corpo.id);
     assert.deepEqual([t.dueDate, t.dueTime, t.category], ["2026-10-02", "15:00", "c-pets"]);
     const mudou = await pedir(base, token, "PATCH", "/tarefas/remarcar", { tarefa: "vacina do rex", quando: "sábado" });
@@ -206,7 +220,8 @@ test("criar, remarcar (e desfazer), apagar (e trazer de volta), nomes parecidos"
     assert.equal(t.deleted, false);
     repo.d.tarefas.push(tarefa("x", "Comprar pão", HOJE), tarefa("y", "Comprar pão de queijo", HOJE));
     const qual = await pedir(base, token, "POST", "/tarefas/concluir", { tarefa: "comprar" });
-    assert.equal(qual.status, 409);
+    assert.equal(qual.status, 422);
+    assert.equal(qual.corpo.falta, "qual");
     assert.match(qual.corpo.fala, /Qual delas\?/);
     assert.equal((await pedir(base, token, "POST", "/tarefas/concluir", { tarefa: "comprar pão" })).status, 200);  // exata
   } finally { fechar(); }
@@ -244,5 +259,124 @@ test("painel: os dias todos numa leitura só, iguais à rota", async () => {
     assert.deepEqual(achar("tarefas", undefined), achar("tarefas", "hoje"));  // sem dia: hoje
     assert.deepEqual(achar("tarefas", "amanha"), (await pedir(base, token, "GET", "/tarefas?quando=amanha")).corpo);
     assert.ok(painel.corpo.respostas.some((r) => r.acao === "tarefas_pendentes"));
+  } finally { fechar(); }
+});
+
+// ------------------------------------------------------------------ criar, editar, pular, aprovações e membros (v4)
+
+test("criar: pergunta nome, data e categoria; sem hora, a de agora; pública se não disser", async () => {
+  const repo = familia();
+  const token = tokenDe(repo, "ana");
+  const { base, fechar } = await servidor(repo);
+  try {
+    const passos = [[{}, "titulo"], [{ titulo: "dentista da bia" }, "quando"], [{ quando: "semana que vem talvez" }, "quando"],
+                    [{ quando: "amanhã" }, "categoria"]];
+    let corpo = {};
+    for (const [mais, falta] of passos) {
+      corpo = { ...corpo, ...mais };
+      const r = await pedir(base, token, "POST", "/tarefas", corpo);
+      assert.equal(r.status, 422, JSON.stringify(r.corpo));
+      assert.equal(r.corpo.falta, falta);
+    }
+    const sugestao = await pedir(base, token, "POST", "/tarefas", corpo);
+    assert.equal(sugestao.corpo.fala, "Qual a categoria? Pode ser Saúde?");  // pelo título
+    assert.equal(repo.d.tarefas.length, 0);
+    const r = await pedir(base, token, "POST", "/tarefas", { ...corpo, categoria: "pode ser",
+      recorrencia: "toda segunda e quarta", subtarefas: "levar a carteirinha e o exame" });
+    assert.equal(r.status, 201);
+    const t = repo.d.tarefas[0];
+    assert.equal(t.title, "Dentista da bia");
+    assert.equal(t.dueTime, "10:00");                    // a hora de agora (AGORA é 10h)
+    assert.equal(t.isPrivate, false);
+    assert.deepEqual([t.category, t.recurrence, t.weekDays], ["health", "custom_weekly", [1, 3]]);
+    assert.deepEqual(t.subtasks.map((s) => [s.title, s.completed, s.category]), [["Levar a carteirinha", false, "health"], ["O exame", false, "health"]]);
+    assert.match(r.corpo.fala, /^Criei a tarefa Dentista da bia pra amanhã às 10h, em Saúde, toda segunda e quarta, com 2 subtarefas\.$/);
+    const privada = await pedir(base, token, "POST", "/tarefas", { titulo: "presente", quando: "hoje", categoria: "família", privada: "só pra mim" });
+    assert.match(privada.corpo.fala, /só pra você\.$/);
+  } finally { fechar(); }
+});
+
+test("editar: acha pelo nome, pergunta qual entre parecidas (pela data) e o que muda; desfazer volta", async () => {
+  const repo = familia();
+  const token = tokenDe(repo, "ana");
+  repo.d.tarefas.push(tarefa("p1", "Comprar pão", "2026-09-30", { dueTime: "08:00" }), tarefa("p2", "Comprar pão", "2026-10-02"));
+  const { base, fechar } = await servidor(repo);
+  try {
+    const qual = await pedir(base, token, "PATCH", "/tarefas/editar", { tarefa: "comprar pão" });
+    assert.equal(qual.corpo.falta, "qual");
+    assert.equal(qual.corpo.fala, "Tem 2 parecidas: Comprar pão hoje às 8h e Comprar pão sexta. Qual delas?");
+    const oQue = await pedir(base, token, "PATCH", "/tarefas/editar", { tarefa: "comprar pão", qual: "a de sexta" });
+    assert.equal(oQue.corpo.falta, "o_que");
+    const r = await pedir(base, token, "PATCH", "/tarefas/editar", { tarefa: "comprar pão", qual: "a de sexta", o_que: "pra sábado às 9h" });
+    assert.equal(r.status, 200, JSON.stringify(r.corpo));
+    const p2 = repo.d.tarefas.find((t) => t.id === "p2");
+    assert.deepEqual([p2.dueDate, p2.dueTime], ["2026-10-03", "09:00"]);
+    assert.equal(repo.d.tarefas.find((t) => t.id === "p1").dueDate, "2026-09-30");  // a outra não mudou
+    const privada = await pedir(base, token, "PATCH", "/tarefas/editar", { tarefa: "comprar pão", qual: "a primeira", privada: "sim" });
+    assert.match(privada.corpo.fala, /só pra você/);
+    const volta = { id: "p1", titulo: privada.corpo.titulo_anterior, quando: privada.corpo.data_anterior, hora: privada.corpo.hora_anterior,
+                    categoria: privada.corpo.categoria_anterior, privada: privada.corpo.privada_anterior,
+                    recorrencia: privada.corpo.recorrencia_anterior, dono: privada.corpo.dono_anterior };
+    await pedir(base, token, "PATCH", "/tarefas/p1/voltar", volta);
+    assert.equal(repo.d.tarefas.find((t) => t.id === "p1").isPrivate, false);
+  } finally { fechar(); }
+});
+
+test("pular: só recorrente, vai para a próxima data; dependente pede aprovação", async () => {
+  const repo = familia();
+  repo.d.tarefas.push(tarefa("r", "Regar as plantas", "2026-09-30", { recurrence: "weekly" }), tarefa("u", "Pagar luz", "2026-09-30"));
+  const { base, fechar } = await servidor(repo);
+  try {
+    const ana = tokenDe(repo, "ana");
+    const r = await pedir(base, ana, "POST", "/tarefas/pular", { tarefa: "regar as plantas" });
+    assert.equal(r.corpo.fala, "Pulei Regar as plantas. A próxima é dia 7/10.");
+    assert.equal(repo.d.tarefas[0].dueDate, "2026-10-07");
+    assert.equal((await pedir(base, ana, "POST", "/tarefas/pular", { tarefa: "pagar luz" })).status, 409);
+    const leo = await pedir(base, tokenDe(repo, "leo"), "POST", "/tarefas/pular", { tarefa: "regar" });
+    assert.equal(leo.status, 202);
+  } finally { fechar(); }
+});
+
+test("aprovações: só o admin vê e responde; aprovar faz o que foi pedido", async () => {
+  const repo = familia();
+  repo.d.tarefas.push(tarefa("a", "Lavar o carro", "2026-09-30", { recurrence: "weekly" }), tarefa("b", "Lixo", "2026-09-30"));
+  const { base, fechar } = await servidor(repo);
+  try {
+    const leo = tokenDe(repo, "leo");
+    await pedir(base, leo, "POST", "/tarefas/concluir", { tarefa: "lavar o carro" });
+    await pedir(base, leo, "DELETE", "/tarefas?tarefa=lixo");
+    assert.equal((await pedir(base, tokenDe(repo, "bia"), "GET", "/aprovacoes")).status, 403);
+    const ana = tokenDe(repo, "ana");
+    const lista = await pedir(base, ana, "GET", "/aprovacoes");
+    assert.equal(lista.corpo.fala, "Tem 2 pedidos de aprovação: Leo quer concluir Lavar o carro e Leo quer apagar Lixo.");
+    const qual = await pedir(base, ana, "POST", "/aprovacoes/responder", { decisao: "aprova", pedido: "leo" });
+    assert.equal(qual.corpo.falta, "pedido");
+    const ok = await pedir(base, ana, "POST", "/aprovacoes/responder", { decisao: "aprova", pedido: "lavar o carro" });
+    assert.equal(ok.corpo.fala, "Aprovado: Leo pode concluir Lavar o carro.");
+    assert.equal(repo.d.tarefas.find((t) => t.id === "a").completed, true);
+    assert.equal(repo.d.tarefas.filter((t) => t.title === "Lavar o carro").length, 2);  // recorrente: a próxima
+    const nao = await pedir(base, ana, "POST", "/aprovacoes/responder", { decisao: "recusa" });  // sobrou um
+    assert.equal(nao.corpo.fala, "Recusado: Leo não vai apagar Lixo.");
+    assert.equal(repo.d.tarefas.find((t) => t.id === "b").deleted, false);
+    assert.deepEqual(repo.d.aprovacoes.map((a) => a.status), ["approved", "rejected"]);
+  } finally { fechar(); }
+});
+
+test("membros: lista, renomeia (admin ou a própria pessoa), tira da família e traz de volta", async () => {
+  const repo = familia();
+  const { base, fechar } = await servidor(repo);
+  try {
+    const ana = tokenDe(repo, "ana");
+    assert.equal((await pedir(base, ana, "GET", "/membros")).corpo.fala, "Na família: Ana (admin), Bia (responsável) e Leo (dependente).");
+    const nome = await pedir(base, ana, "PATCH", "/membros/nome", { membro: "leo", nome: "leonardo" });
+    assert.equal(nome.corpo.fala, "Pronto: Leo agora é Leonardo.");
+    assert.equal((await pedir(base, tokenDe(repo, "bia"), "PATCH", "/membros/nome", { membro: "leonardo", nome: "x" })).status, 403);
+    assert.equal((await pedir(base, tokenDe(repo, "bia"), "PATCH", "/membros/nome", { membro: "bia", nome: "beatriz" })).status, 200);
+    assert.equal((await pedir(base, ana, "DELETE", "/membros?membro=ana")).status, 409);  // sair, só pelo app
+    const saiu = await pedir(base, ana, "DELETE", "/membros?membro=leonardo");
+    assert.equal(saiu.corpo.fala, "Tirei Leonardo da família.");
+    assert.equal(repo.d.pessoas.leo.familyId, null);
+    await pedir(base, ana, "POST", "/membros/leo/restaurar", { papel: saiu.corpo.papel_anterior });
+    assert.deepEqual([repo.d.pessoas.leo.familyId, repo.d.pessoas.leo.role], ["f", "dependent"]);
   } finally { fechar(); }
 });
