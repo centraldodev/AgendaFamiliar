@@ -22,7 +22,10 @@ async function spawnNextRecurringOccurrence(
 ): Promise<void> {
   const user = useUserStore.getState().user;
 
-  await notificationService.cancelTaskNotifications(task.notificationIds);
+  await notificationService.cancelTaskNotifications(
+    task.notificationIds,
+    task.id,
+  );
 
   const nextDate = RecurrenceCalculator.calculateNextDate(
     task.dueDate,
@@ -98,7 +101,10 @@ async function reconcileNotificationsWithRemote(
     const newTask = newById.get(oldTask.id);
     const nowInactive = !newTask || newTask.completed || !!newTask.deletedAt;
     if (nowInactive) {
-      await notificationService.cancelTaskNotifications(oldTask.notificationIds);
+      await notificationService.cancelTaskNotifications(
+        oldTask.notificationIds,
+        oldTask.id,
+      );
       updates[oldTask.id] = null;
     }
   }
@@ -328,6 +334,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       if (needsReschedule) {
         await notificationService.cancelTaskNotifications(
           currentTask.notificationIds,
+          currentTask.id,
         );
 
         const updatedTask = { ...currentTask, ...finalUpdates } as Task;
@@ -383,9 +390,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     }
 
     console.log("Canceling notifications...");
-    if (task.notificationIds) {
-      await notificationService.cancelTaskNotifications(task.notificationIds);
-    }
+    await notificationService.cancelTaskNotifications(
+      task.notificationIds,
+      task.id,
+    );
 
     set((state) => {
       const newMap = { ...state.localNotificationMap };
@@ -477,7 +485,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         await spawnNextRecurringOccurrence(task, task.subtasks, set);
       } else {
         console.log("Handling non-recurring task toggle");
-        await notificationService.cancelTaskNotifications(task.notificationIds);
+        await notificationService.cancelTaskNotifications(
+          task.notificationIds,
+          task.id,
+        );
 
         console.log("Updating task with completed:", isCompleting);
         await taskService.updateTask(id, {
@@ -496,6 +507,12 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
               [id]: newIds,
             },
           }));
+        } else {
+          set((state) => {
+            const newMap = { ...state.localNotificationMap };
+            delete newMap[id];
+            return { localNotificationMap: newMap };
+          });
         }
       }
 
@@ -559,7 +576,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         // open the next one with subtasks reset to incomplete
         await spawnNextRecurringOccurrence(task, updatedSubtasks, set);
       } else {
-        await notificationService.cancelTaskNotifications(task.notificationIds);
+        await notificationService.cancelTaskNotifications(
+          task.notificationIds,
+          task.id,
+        );
         await taskService.updateTask(taskId, {
           subtasks: updatedSubtasks,
           completed: true,
@@ -629,7 +649,10 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     console.log("Current task date:", task.dueDate);
     console.log("Next date calculated (skip):", formattedDate);
 
-    await notificationService.cancelTaskNotifications(task.notificationIds);
+    await notificationService.cancelTaskNotifications(
+      task.notificationIds,
+      task.id,
+    );
 
     const updates = {
       dueDate: formattedDate,

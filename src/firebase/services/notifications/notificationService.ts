@@ -159,10 +159,12 @@ export const notificationService = {
       return [];
     }
 
-    // Skip completed non-recurring tasks
-    if (task.completed && (!task.recurrence || task.recurrence === "none")) {
+    // A completed occurrence must never keep reminders. Recurring tasks create a
+    // separate, pending occurrence, so the historical completed record is also
+    // ineligible for notifications.
+    if (task.completed) {
       console.log(
-        "[NotificationService] Skipping notifications for completed non-recurring task:",
+        "[NotificationService] Skipping notifications for completed task:",
         task.id,
       );
       return [];
@@ -324,14 +326,42 @@ export const notificationService = {
   /**
    * Cancela notificações de uma tarefa
    */
-  async cancelTaskNotifications(notificationIds?: string[]): Promise<void> {
+  async cancelTaskNotifications(
+    notificationIds?: string[],
+    taskId?: string,
+  ): Promise<void> {
     if (Platform.OS === "web") return;
-    if (!notificationIds || notificationIds.length === 0) return;
 
-    for (const id of notificationIds) {
+    const ids = new Set(notificationIds || []);
+
+    // The IDs live in local state and can be briefly stale (for example when a
+    // task is completed immediately after creation or after an app restart).
+    // Recover the actual IDs from the OS using the taskId embedded at schedule
+    // time, making cancellation independent from store timing.
+    if (taskId) {
+      try {
+        const scheduled =
+          await Notifications.getAllScheduledNotificationsAsync();
+        for (const notification of scheduled) {
+          const notificationTaskId = (notification as any)?.content?.data
+            ?.taskId;
+          if (notificationTaskId === taskId) {
+            ids.add(notification.identifier);
+          }
+        }
+      } catch (error) {
+        console.error(
+          "[NotificationService] Error finding notifications for task:",
+          taskId,
+          error,
+        );
+      }
+    }
+
+    for (const id of ids) {
       try {
         await Notifications.cancelScheduledNotificationAsync(id);
-      } catch (error) {
+      } catch {
         console.log(
           "[NotificationService] Notification ID might not exist:",
           id,
@@ -450,8 +480,9 @@ export const notificationService = {
     const notificationMap: Record<string, string[]> = {};
 
     for (const task of tasks) {
-      // Skip completed non-recurring tasks
-      if (task.completed && (!task.recurrence || task.recurrence === "none")) {
+      // Completed records (including completed recurring occurrences) never
+      // receive reminders. A recurrence is represented by a new pending task.
+      if (task.completed) {
         continue;
       }
 

@@ -85,6 +85,15 @@ describe("Notification Service", () => {
       expect(mockSchedule).not.toHaveBeenCalled();
     });
 
+    it("should NOT schedule a completed recurring occurrence", async () => {
+      const task = createMockTask({ completed: true, recurrence: "daily" });
+
+      const ids = await notificationService.scheduleTaskNotifications(task);
+
+      expect(ids).toHaveLength(0);
+      expect(mockSchedule).not.toHaveBeenCalled();
+    });
+
     it("should NOT schedule for deleted task", async () => {
       const task = createMockTask({ deletedAt: new Date().toISOString() });
 
@@ -168,6 +177,42 @@ describe("Notification Service", () => {
 
       expect(mockCancel).not.toHaveBeenCalled();
     });
+
+    it("should find and cancel notifications by task ID when local IDs are stale", async () => {
+      mockGetAll.mockResolvedValue([
+        {
+          identifier: "scheduled-for-task",
+          content: { data: { taskId: "task-123" } },
+        },
+        {
+          identifier: "scheduled-for-other-task",
+          content: { data: { taskId: "other-task" } },
+        },
+      ] as any);
+
+      await notificationService.cancelTaskNotifications([], "task-123");
+
+      expect(mockCancel).toHaveBeenCalledWith("scheduled-for-task");
+      expect(mockCancel).not.toHaveBeenCalledWith(
+        "scheduled-for-other-task",
+      );
+    });
+
+    it("should not cancel the same notification twice", async () => {
+      mockGetAll.mockResolvedValue([
+        {
+          identifier: "notif-1",
+          content: { data: { taskId: "task-123" } },
+        },
+      ] as any);
+
+      await notificationService.cancelTaskNotifications(
+        ["notif-1"],
+        "task-123",
+      );
+
+      expect(mockCancel).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("cancelAll", () => {
@@ -194,7 +239,7 @@ describe("Notification Service", () => {
 
     it("should skip completed and deleted tasks", async () => {
       const tasks = [
-        createMockTask({ id: "task-1", completed: true, recurrence: "none" }),
+        createMockTask({ id: "task-1", completed: true, recurrence: "daily" }),
         createMockTask({ id: "task-2", deletedAt: new Date().toISOString() }),
         createMockTask({ id: "task-3", title: "Valid Task" }),
       ];
