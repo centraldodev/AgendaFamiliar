@@ -58,3 +58,6 @@ functions/lib/
 dist-native/
 *-debug.log
 
+
+# Firebase Android (FCM): vem da variável de arquivo GOOGLE_SERVICES_JSON no EAS
+google-services.json

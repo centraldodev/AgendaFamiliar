@@ -1,17 +1,17 @@
 {
   "expo": {
     "name": "Agenda Familiar",
-    "slug": "agenda-familiar-nova",
+    "slug": "agenda-familiar",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.natanael.agendafamiliar.nova",
+      "bundleIdentifier": "com.natanael.agendafamiliar",
       "icon": "./assets/icon.png"
     },
     "android": {
-      "package": "com.natanael.agendafamiliar.nova",
+      "package": "com.natanael.agendafamiliar",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -46,6 +46,12 @@
         }
       ]
     ],
-    "icon": "./assets/icon.png"
+    "icon": "./assets/icon.png",
+    "scheme": "agendafamiliar",
+    "extra": {
+      "eas": {
+        "projectId": "d014eed9-1574-40c4-89ce-46ebf54f97c5"
+      }
+    }
   }
 }

@@ -11,7 +11,7 @@ npm install
 npm start          # Expo Go (Android/iOS); `npm run web` para o navegador
 ```
 
-O app acessa dados reais: salvar uma tarefa ou criar/entrar numa família altera o banco de produção. Os identificadores nativos têm o sufixo `.nova`.
+O app acessa dados reais: salvar uma tarefa ou criar/entrar numa família altera o banco de produção. O pacote Android é `com.natanael.agendafamiliar` (o mesmo do app antigo, que é substituído na instalação).
 
 ## Testes
 
@@ -32,6 +32,22 @@ firebase deploy --only firestore:rules,firestore:indexes
 ```
 
 Publique as functions antes das regras: as regras dependem de ações que só existem no backend novo (ex.: marcar subtarefas).
+
+## APK (EAS)
+
+Projeto EAS `@n2ilva/agenda-familiar`, com a mesma chave de assinatura do app antigo: o APK instala por cima dele.
+
+```sh
+npx eas-cli build --platform android --profile preview      # APK para instalar direto
+npx eas-cli build --platform android --profile production   # AAB para a Play Store
+```
+
+As notificações push no Android precisam do `google-services.json` do app Android `com.natanael.agendafamiliar` (Console do Firebase). Ele não vai para o git; cadastre uma vez no EAS:
+
+```sh
+npx eas-cli env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json \
+  --environment preview --environment production --visibility secret
+```
 
 ## Limpeza do app antigo (uma vez)
 
