@@ -1,11 +1,1 @@
-{
-  "name": "firestore-rules-tests",
-  "private": true,
-  "scripts": {
-    "test": "jest --runInBand"
-  },
-  "devDependencies": {
-    "@firebase/rules-unit-testing": "^3.0.4",
-    "jest": "^29.7.0"
-  }
-}
+{"name":"agenda-familiar-rules-tests","private":true,"scripts":{"test":"node --test rules.test.cjs"},"dependencies":{"@firebase/rules-unit-testing":"^5.0.0","firebase":"^12.7.0"}}

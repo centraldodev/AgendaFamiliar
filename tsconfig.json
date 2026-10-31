@@ -1,54 +1,15 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true,
-    "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@src/*": [
-        "./src/*"
-      ],
-      "@components/*": [
-        "./src/components/*"
-      ],
-      "@screens/*": [
-        "./src/screens/*"
-      ],
-      "@store/*": [
-        "./src/store/*"
-      ],
-      "@hooks/*": [
-        "./src/hooks/*"
-      ],
-      "@utils/*": [
-        "./src/utils/*"
-      ],
-      "@types": [
-        "./src/types"
-      ],
-      "@styles/*": [
-        "./src/styles/*"
-      ],
-      "@navigation/*": [
-        "./src/navigation/*"
-      ],
-      "@constants/*": [
-        "./constants/*"
-      ],
-      "@assets/*": [
-        "./assets/*"
-      ],
-      "@domain/*": [
-        "./src/domain/*"
-      ],
-      "@infrastructure/*": [
-        "./src/infrastructure/*"
-      ]
-    }
+    "strict": true
   },
   "include": [
     "**/*.ts",
     "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "functions",
+    "firestore-tests"
   ]
 }

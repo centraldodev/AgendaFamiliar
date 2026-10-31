@@ -1,17 +1,10 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "moduleResolution": "node",
-    "noImplicitReturns": true,
-    "noUnusedLocals": true,
+    "target": "es2022",
     "outDir": "lib",
-    "rootDir": "src",
-    "sourceMap": true,
     "strict": true,
-    "target": "es2020",
-    "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "compileOnSave": true,
   "include": ["src"]
 }

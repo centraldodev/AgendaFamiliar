@@ -1,162 +1,105 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ============================================
-    // HELPER FUNCTIONS
-    // ============================================
-
-    function isAuthenticated() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function self(uid) { return signedIn() && request.auth.uid == uid; }
+    function member(familyId) {
+      return signedIn() && familyId is string && familyId.size() > 0
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('familyId', null) == familyId;
+    }
+    function admin(familyId) {
+      return member(familyId)
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
+    }
+    function taskOwner(data) { return signedIn() && data.get('createdBy', '') == request.auth.uid; }
+    function readableTask(data) {
+      return member(data.familyId)
+        && (data.get('isPrivate', false) == false || taskOwner(data));
+    }
+    function basicTask(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 160
+        && data.description is string && data.description.size() <= 4000
+        && data.dueDate is string && data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (data.dueTime == null || (data.dueTime is string && data.dueTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')))
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 100
+        && data.isPrivate is bool;
+    }
+    function writeMetadata(data) {
+      return data.lastModifiedBy == request.auth.uid && data.updatedAt == request.time;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    match /users/{uid} {
+      // O perfil contém dados pessoais. Apenas seu titular pode lê-lo.
+      allow get: if self(uid);
+      allow list: if false;
+      allow create: if self(uid)
+        && request.resource.data.keys().hasAll(['uid', 'email', 'displayName'])
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'displayName'])
+        && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.get('email', '')
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 120;
+      // Vínculo familiar e papel são definidos exclusivamente pelo backend.
+      allow update: if self(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 120;
+      allow delete: if false;
     }
 
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function belongsToFamily(familyId) {
-      return isAuthenticated() && getUserData().familyId == familyId;
-    }
-
-    function isAdmin() {
-      return isAuthenticated() && getUserData().role == 'admin';
-    }
-
-    function isAdminOfFamily(familyId) {
-      return belongsToFamily(familyId) && isAdmin();
-    }
-
-    // ============================================
-    // USERS COLLECTION
-    // ============================================
-    match /users/{userId} {
-      // Leitura: Apenas o próprio usuário ou membros da mesma família
-      allow read: if isOwner(userId) ||
-                     (isAuthenticated() && belongsToFamily(resource.data.familyId));
-
-      // Criação: Apenas o próprio usuário pode criar seu perfil
-      allow create: if isOwner(userId) &&
-                       request.resource.data.uid == userId;
-
-      // Atualização: Apenas o próprio usuário (inclui pushTokens do device)
-      // ou admin da família (para gerenciar roles)
-      allow update: if isOwner(userId) ||
-                       (isAuthenticated() &&
-                        isAdminOfFamily(resource.data.familyId) &&
-                        // Admin pode alterar role, mas não pode se auto-rebaixar
-                        (request.resource.data.role != 'dependent' || userId != request.auth.uid));
-
-      // Exclusão: Apenas o próprio usuário
-      allow delete: if isOwner(userId);
-    }
-
-    // ============================================
-    // FAMILIES COLLECTION
-    // ============================================
     match /families/{familyId} {
-      // Leitura: Membros da família
-      allow read: if belongsToFamily(familyId);
-
-      // Criação: Qualquer usuário autenticado pode criar uma família
-      allow create: if isAuthenticated() &&
-                       request.resource.data.createdBy == request.auth.uid;
-
-      // Atualização: Apenas admin da família
-      allow update: if isAdminOfFamily(familyId);
-
-      // Exclusão: Apenas o criador da família
-      allow delete: if isAuthenticated() &&
-                       resource.data.createdBy == request.auth.uid;
+      allow get: if member(familyId);
+      allow list, create, update, delete: if false;
+      // Criação e entrada por código passam pela Cloud Function autenticada.
     }
 
-    // ============================================
-    // TASKS COLLECTION
-    // ============================================
     match /tasks/{taskId} {
-      // Leitura:
-      // - Tarefas privadas: apenas o criador
-      // - Tarefas normais: membros da família
-      allow read: if isAuthenticated() && (
-                     (resource.data.isPrivate == true && resource.data.createdBy == request.auth.uid) ||
-                     (resource.data.isPrivate != true && belongsToFamily(resource.data.familyId))
-                   );
+      // Registros antigos sem isPrivate continuam compartilhados.
+      allow read: if readableTask(resource.data);
+      allow create: if member(request.resource.data.familyId)
+        && request.resource.data.keys().hasAll([
+          'title', 'description', 'dueDate', 'dueTime', 'category', 'isPrivate',
+          'familyId', 'userId', 'createdBy', 'createdAt', 'updatedAt',
+          'lastModifiedBy', 'completed', 'recurrence', 'subtasks'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'title', 'description', 'dueDate', 'dueTime', 'category', 'isPrivate',
+          'familyId', 'userId', 'createdBy', 'createdAt', 'updatedAt',
+          'lastModifiedBy', 'completed', 'recurrence', 'subtasks'
+        ])
+        && taskOwner(request.resource.data)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && writeMetadata(request.resource.data)
+        && basicTask(request.resource.data)
+        && request.resource.data.completed == false
+        && request.resource.data.recurrence == 'none'
+        && request.resource.data.subtasks == [];
 
-      // Criação: Membros da família
-      allow create: if isAuthenticated() &&
-                       belongsToFamily(request.resource.data.familyId) &&
-                       request.resource.data.createdBy == request.auth.uid &&
-                       request.resource.data.familyId == getUserData().familyId;
-
-      // Atualização:
-      // - Usuário pode atualizar suas próprias tarefas
-      // - Admin pode atualizar qualquer tarefa não-privada da família
-      allow update: if isAuthenticated() &&
-                       belongsToFamily(resource.data.familyId) &&
-                       (
-                         resource.data.createdBy == request.auth.uid ||
-                         (isAdminOfFamily(resource.data.familyId) && resource.data.isPrivate != true)
-                       );
-
-      // Hard Delete: Apenas criador ou admin (para tarefas não-privadas)
-      allow delete: if isAuthenticated() &&
-                       (resource.data.createdBy == request.auth.uid ||
-                        (isAdminOfFamily(resource.data.familyId) && resource.data.isPrivate != true));
+      // IDs, autoria, família e campos legados permanecem imutáveis.
+      allow update: if member(resource.data.familyId)
+        && resource.data.get('deletedAt', null) == null
+        && writeMetadata(request.resource.data)
+        && (
+          (taskOwner(resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'title', 'description', 'dueDate', 'dueTime', 'category', 'isPrivate',
+              'completed', 'lastModifiedBy', 'updatedAt'
+            ])
+            && (
+              // Concluir registros antigos não exige preencher campos ausentes.
+              (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed', 'lastModifiedBy', 'updatedAt'])
+                && request.resource.data.completed is bool)
+              || (basicTask(request.resource.data) && request.resource.data.completed is bool)
+            ))
+          || (resource.data.get('isPrivate', false) == false && admin(resource.data.familyId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed', 'lastModifiedBy', 'updatedAt'])
+            && request.resource.data.completed is bool)
+        );
+      allow delete: if false;
     }
 
-    // ============================================
-    // APPROVALS COLLECTION
-    // ============================================
-    match /approvals/{approvalId} {
-      // Leitura: Membros da família
-      allow read: if isAuthenticated() &&
-                     belongsToFamily(resource.data.familyId);
-
-      // Criação: Membros da família podem criar solicitações
-      allow create: if isAuthenticated() &&
-                       belongsToFamily(request.resource.data.familyId) &&
-                       request.resource.data.requestedBy == request.auth.uid &&
-                       request.resource.data.status == 'pending';
-
-      // Atualização: Apenas admin pode aprovar/rejeitar
-      allow update: if isAdminOfFamily(resource.data.familyId) &&
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
-                       (request.resource.data.status == 'approved' ||
-                        request.resource.data.status == 'rejected');
-
-      // Exclusão: Apenas admin ou o solicitante pode deletar
-      allow delete: if isAuthenticated() &&
-                       (isAdminOfFamily(resource.data.familyId) ||
-                        resource.data.requestedBy == request.auth.uid);
-    }
-
-    // ============================================
-    // CATEGORIES COLLECTION
-    // ============================================
-    match /categories/{categoryId} {
-      // Leitura: Membros da família
-      allow read: if isAuthenticated() &&
-                     belongsToFamily(resource.data.familyId);
-
-      // Criação: Membros da família
-      allow create: if isAuthenticated() &&
-                       belongsToFamily(request.resource.data.familyId);
-
-      // Atualização: Apenas admin
-      allow update: if isAdminOfFamily(resource.data.familyId);
-
-      // Exclusão: Apenas admin
-      allow delete: if isAdminOfFamily(resource.data.familyId);
-    }
-
-    // ============================================
-    // DENY ALL OTHER COLLECTIONS
-    // ============================================
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    // Funcionalidades antigas não utilizadas pelo aplicativo atual ficam fechadas.
+    match /{document=**} { allow read, write: if false; }
   }
 }

@@ -52,3 +52,10 @@ app-example
 # credentials / keystore dumps (keep local only)
 client_secret_*.json
 *keystore*.txt
+
+# Novo Agenda Familiar
+functions/lib/
+dist-native/
+*-debug.log
+
+.local-backups/
