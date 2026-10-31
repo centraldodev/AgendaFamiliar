@@ -1,5 +1,6 @@
-import { Pressable, Text, View } from "react-native";
-import { appStyles as s } from "../../styles/appStyles";
+import { Pressable, View } from "react-native";
+import { useTheme } from "../../styles/theme";
+import { Icon } from "../ui/Icon";
 export function NewTaskFab({
   disabled,
   onPress,
@@ -7,6 +8,7 @@ export function NewTaskFab({
   disabled: boolean;
   onPress: () => void;
 }) {
+  const { s, colors } = useTheme();
   return (
     <View pointerEvents="box-none" style={s.fabContainer}>
       <Pressable
@@ -21,9 +23,7 @@ export function NewTaskFab({
           disabled && { opacity: 0.5 },
         ]}
       >
-        <Text accessible={false} style={s.fabIcon}>
-          +
-        </Text>
+        <Icon name="add" size={32} color={colors.onPrimary} />
       </Pressable>
     </View>
   );

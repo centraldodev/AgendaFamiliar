@@ -12,7 +12,8 @@ src/
   services/
     auth/                     Login, cadastro, logout e recuperação de senha
     profiles/                 Leitura e atualização do perfil
-    families/                 Leitura, criação e entrada no grupo
+    families/                 Grupo, solicitações de entrada, membros, papéis e histórico
+    notifications/            Permissão, token e escuta das notificações push
     tasks/                    Leitura, gravação e conclusão de tarefas
     session/                  Leitura do contexto da sessão
   controllers/
@@ -21,14 +22,17 @@ src/
     useTaskController.ts      Lista, filtros, atualização e tentativas
     useTaskFormController.ts  Estado do formulário e envio
     useAuthController.ts      Estado e ações da tela de autenticação
-    useFamilyController.ts    Estado e ações de entrada/criação da família
+    useFamilyController.ts    Criar grupo, pedir entrada e aguardar aprovação
+    useFamilyManagementController.ts  Área da família: membros, pedidos, histórico, troca de grupo
+    useNotificationController.ts  Registro do aparelho e ações das notificações
     useAsyncActionController.ts  Estado das ações e mensagens
     useAgendaController.ts    Composição dos controllers
   routes/                     Seleção das telas de acordo com a sessão
-  views/                      Telas de autenticação, família, tarefas e formulário
+  views/                      Telas de autenticação, família, configurações, tarefas e formulário
   components/
     ui/                       Botão e campo de entrada
-    layout/                   Cabeçalho e abas
+    layout/                   Cabeçalho (com o botão de configurações)
+    settings/                 Cartões da área de configurações e da família
     tasks/                    Cartão de tarefa, FAB e skeleton
   styles/                     Estilos compartilhados do aplicativo
   utils/                      Data, mensagens, filtros, validação e timeout
@@ -36,6 +40,7 @@ functions/src/
   index.ts                    Registro dos endpoints, preservando seus nomes
   config/                     Firebase Admin e opções dos endpoints
   controllers/                Uma função de atendimento por arquivo
+  services/                   Regras de família: solicitações, aprovação, papéis, histórico e push
   middlewares/                Verificação de visibilidade no servidor
 ```
 
@@ -46,14 +51,56 @@ functions/src/
 - Models não dependem de React, de telas ou de serviços. O contrato que agrupa controllers fica em `controllers/AgendaController.ts`.
 - Middlewares do aplicativo são pré-condições locais e não substituem segurança no servidor. `firestore.rules` e as funções autenticadas continuam sendo a autoridade de acesso.
 - Os routers preservam a navegação simples atual, sem introduzir outra biblioteca de navegação nesta refatoração.
+- Código compartilhado: `functions/src/shared/` (recorrência, validação de tarefa, permissões e papéis) é a fonte única para o app e o backend. Não pode importar Firebase nem nada de fora da pasta. O `firestore.rules` repete as regras; os testes de regras cobrem os mesmos casos.
+- Estilo: nada de cor, fonte ou espaçamento solto nos componentes. Tokens em `styles/tokens.ts` (cores com nome de papel, como `primary`, `surface` ou `textMuted`, além de `spacing`, `radius` e `typography`); estilos em `styles/appStyles.ts`, lidos com `const { s, colors } = useTheme()`. Botões usam `<Button variant="primary|secondary|danger|ghost">`. Modo escuro: paleta `darkColors`. A escolha (Configurações › Aparência: aparelho, claro ou escuro) fica salva só no aparelho (`services/settings/themePreference.ts`). Cor nova? Crie o token nas duas paletas.
 - Dados, nomes das coleções, endpoints, regras publicadas e identidade do aplicativo são preservados.
+
+## Papéis e permissões
+
+- Há dois papéis: `admin` e `user`. Sem papel definido vale como `user`.
+- `user`: cria tarefas públicas, conclui as tarefas que criou e marca as subtarefas delas. Marcar a última subtarefa conclui a tarefa.
+- `admin`: tudo isso, mais criar tarefas privadas, editar e excluir tarefas compartilhadas (e as próprias privadas), restaurar tarefas concluídas (só um admin reabre uma concluída), aprovar ou recusar entradas, mudar o papel de membros e removê-los. Tarefas privadas de outras pessoas continuam fora do alcance de qualquer administrador.
+- As regras estão em `firestore.rules` (tarefas) e nos serviços de `functions/src/services` (família); o app apenas espelha as permissões em `src/middlewares`.
+
+## Filtros da agenda
+
+- `Hoje`: pendentes com data de hoje (e registros antigos sem data); atrasadas aparecem só em `Todas`. `Futuras`: pendentes do dia seguinte em diante. `Concluídas`: concluídas nos últimos 7 dias, mais recentes primeiro; as mais antigas somem do app e são apagadas pelo backend na próxima listagem (`handleListTasks`). `Privadas`: tarefas privadas do usuário (o filtro só aparece quando útil). `Todas`: tudo.
+- A regra fica em `utils/filterTasks.ts`; se o filtro `Privadas` deixar de estar disponível, a tela volta para `Hoje`.
+
+## Recorrência e subtarefas
+
+- Recorrências: `daily`, `weekly`, `custom_weekly` (dias da semana em `weekDays`), `interval` (a cada `recurrenceInterval` dias; 15 e 30 são atalhos), `monthly` e `yearly`, com `recurrenceEndDate` opcional.
+- Concluir uma recorrente (pelo botão ou marcando a última subtarefa) ou pular a recorrência passa pelo backend (`agendaTaskOccurrence`): a atual é arquivada (concluída, ou `skipped` quando pulada) e uma nova é criada na próxima data depois de hoje, com o mesmo autor, subtarefas desmarcadas e `previousOccurrenceId`. Passada a data final, só arquiva. Puladas aparecem em `Concluídas` e só um admin as restaura. O cálculo está em `functions/src/shared/nextOccurrence.ts`, usado também pelo app.
+- Subtarefas: até 30 por tarefa, criadas e editadas no formulário. Marcar segue a permissão de concluir e passa pelo backend (`agendaTaskOccurrence`, ação `toggleSubtask`): as regras não deixam o app reescrever a lista, porque rules não conseguem comparar item por item. Marcar a última conclui a tarefa (recorrente: cria a próxima).
+- Concluídas ou puladas há mais de 7 dias saem da lista e são apagadas pela `agendaCleanup` (diária, 03:30). A listagem não grava nada.
+- O app atualiza a lista a cada 60s, as configurações a cada 30s (abertas) ou 120s, e a espera de aprovação a cada 30s, tudo só em primeiro plano (`controllers/usePolling.ts`). Ao voltar ao app e ao receber uma notificação, atualiza na hora.
+
+## Entrada no grupo, histórico e notificações
+
+- Entrar por código nunca vincula direto: cria `joinRequests/{uid}` (um pedido por usuário) e avisa os administradores por push.
+- Um administrador aceita (escolhendo `user` ou `admin`) ou recusa, no app ou pelos botões da notificação. Quem já está em um grupo continua nele até a aprovação; então a troca acontece e a saída é registrada.
+- Todo evento (pedido, aprovação com quem aprovou, horário e acesso concedido, recusa, mudança de papel, remoção, saída) é gravado em `families/{id}/history`, somente pelo backend, e lido por administradores.
+- Tarefa pública criada: `agendaTaskCreated` (gatilho do Firestore) avisa os outros membros. Privadas não geram aviso.
+- Vencimento: `agendaDueReminders` roda a cada 5 minutos e avisa no horário da tarefa (sem horário: 08:00, Brasília). Pública: toda a família; privada: só quem criou. Lê o estado atual a cada execução, então exclusão, conclusão ou mudança de data já valem; `dueReminders/{taskId}` evita aviso repetido da mesma ocorrência. O app não agenda lembretes locais.
+- O token de push do aparelho fica em `users/{uid}.pushTokens` e é enviado pelo serviço Expo Push. Push remoto exige app instalado (development build/EAS) em aparelho real; no Expo Go do Android o app funciona sem notificações, e os pedidos aparecem em Configurações.
+
+## API REST
+
+Função `agendaApi` (`functions/src/api`), em `https://us-central1-<projeto>.cloudfunctions.net/agendaApi/v1/...`. Autenticação por `Authorization: Bearer <token>`, que pode ser o ID token do Firebase ou um token pessoal `agf_…` (guardado só como SHA-256 em `apiTokens`). Limites: 300 req/min por IP antes da autenticação e 120 req/min por usuário depois, contados em cada instância (com até 3 instâncias, o teto real é o triplo). Tokens recusados ficam 5 min em cache, sem nova leitura no banco. Os erros saem em `application/problem+json`, com `errors[]` por campo quando a resposta é 422. As permissões são as de `services/taskPermissions.ts` e a validação a de `services/validateTaskBody.ts`, ambas espelhos do app e do `firestore.rules`.
+
+- `GET /v1/me` e `GET /v1/family`
+- `GET /v1/tasks?from&to&status=open|done|all&category`, `POST /v1/tasks`, `GET|PATCH|DELETE /v1/tasks/:id`
+- `POST /v1/tasks/:id/complete|skip|reopen` (recorrentes criam a próxima) e `PATCH /v1/tasks/:id/subtasks/:subtaskId` com `{ "completed": bool }`
+- `GET|POST /v1/tokens` e `DELETE /v1/tokens/:id`: só com login do Firebase. O token aparece uma única vez, na resposta do `POST`.
 
 ## Verificação
 
 - `npm run typecheck`: tipos do aplicativo.
 - `npm test`: regressões de carregamento, datas, filtros e permissões da interface.
-- `npm --prefix functions test`: compilação e testes de privacidade do backend.
+- `npm --prefix functions test`: compilação e testes de privacidade e da API do backend.
 - `npm run test:rules`: testes das regras no emulador, usando o projeto fictício.
+- `npm run test:family`: testes das ações de família do backend (pedidos, aprovação, papéis, histórico) no emulador.
+- `npm run test:all`: todos os anteriores (os de emulador precisam de Java).
 - `npm run build:web`: exportação da aplicação web.
 
 Ao adicionar uma ação independente, crie sua função em `services/<domínio>/<ação>.ts`, use-a no controller responsável e mantenha a apresentação na view. Estilos e pequenos callbacks que pertencem exclusivamente a um componente podem permanecer no seu arquivo.

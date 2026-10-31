@@ -9,12 +9,14 @@
       "ignore": [
         "node_modules",
         ".git",
-        "*-debug.log"
+        "*-debug.log",
+        "scripts"
       ]
     }
   ],
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "emulators": {
     "firestore": {

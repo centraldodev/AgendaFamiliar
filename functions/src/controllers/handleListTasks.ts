@@ -1,6 +1,8 @@
 import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import { db } from "../config/firebase";
 import { canReadTask } from "../middlewares/canReadTask";
+import { isExpiredCompletedTask } from "../middlewares/isExpiredCompletedTask";
+import { resolveAuthorNames, serializeTask } from "../services/serializeTask";
 export async function handleListTasks(request: CallableRequest) {
   if (!request.auth)
     throw new HttpsError("unauthenticated", "Entre na sua conta.");
@@ -13,26 +15,10 @@ export async function handleListTasks(request: CallableRequest) {
     .collection("tasks")
     .where("familyId", "==", familyId)
     .get();
-  return {
-    tasks: docs.docs.flatMap((doc) => {
-      const t = doc.data();
-      if (!canReadTask(t, uid, familyId)) return [];
-      return [
-        {
-          id: doc.id,
-          title: t.title ?? "",
-          description: t.description ?? "",
-          dueDate: t.dueDate ?? "",
-          dueTime: t.dueTime ?? null,
-          category: t.category ?? "",
-          completed: t.completed === true,
-          familyId,
-          createdBy: t.createdBy ?? t.userId ?? "",
-          isPrivate: t.isPrivate === true,
-          recurrence: t.recurrence ?? "none",
-          subtasks: t.subtasks ?? [],
-        },
-      ];
-    }),
-  };
+  // Concluídas há mais de uma semana saem da lista; a limpeza diária (agendaCleanup) as apaga.
+  const visible = docs.docs.filter(
+    (doc) => !isExpiredCompletedTask(doc.data()) && canReadTask(doc.data(), uid, familyId),
+  );
+  const names = await resolveAuthorNames(visible.map((doc) => doc.data()));
+  return { tasks: visible.map((doc) => serializeTask(doc.id, doc.data(), names)) };
 }

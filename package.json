@@ -12,12 +12,21 @@
     "build:web": "expo export --platform web",
     "test:rules": "firebase emulators:exec --only firestore --project demo-agenda-familiar \"npm --prefix firestore-tests test\"",
     "test:loading": "node --experimental-strip-types --test tests/loading.test.cjs",
-    "test": "node --experimental-strip-types --test tests/*.test.cjs"
+    "test": "node --experimental-strip-types --test tests/*.test.cjs",
+    "test:family": "npm --prefix functions run build && firebase emulators:exec --only firestore --project demo-agenda-familiar \"node --test functions/emulator-tests/*.test.cjs\"",
+    "test:all": "npm test && npm --prefix functions test && npm run test:rules && npm run test:family"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "~2.2.0",
+    "@react-native-community/datetimepicker": "9.2.1",
     "expo": "^58.0.21",
+    "expo-constants": "~58.0.14",
+    "expo-device": "~58.0.5",
+    "expo-notifications": "~58.1.7",
+    "expo-splash-screen": "~58.0.12",
     "expo-status-bar": "~58.0.4",
+    "expo-system-ui": "~58.0.7",
     "firebase": "^12.7.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -32,5 +41,8 @@
   },
   "engines": {
     "node": "^22.13.0 || ^24.3.0 || >=26.0.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.7"
   }
 }

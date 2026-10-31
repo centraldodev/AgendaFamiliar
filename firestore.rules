@@ -11,10 +11,10 @@ service cloud.firestore {
       return member(familyId)
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
     }
-    function taskOwner(data) { return signedIn() && data.get('createdBy', '') == request.auth.uid; }
+    function taskOwner(data) { return signedIn() && data.createdBy == request.auth.uid; }
     function readableTask(data) {
       return member(data.familyId)
-        && (data.get('isPrivate', false) == false || taskOwner(data));
+        && (data.isPrivate == false || taskOwner(data));
     }
     function basicTask(data) {
       return data.title is string && data.title.size() > 0 && data.title.size() <= 160
@@ -23,6 +23,23 @@ service cloud.firestore {
         && (data.dueTime == null || (data.dueTime is string && data.dueTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')))
         && data.category is string && data.category.size() > 0 && data.category.size() <= 100
         && data.isPrivate is bool;
+    }
+    function dateString(value) {
+      return value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+    function validRecurrence(data) {
+      return data.get('recurrence', 'none') in
+          ['none', 'daily', 'weekly', 'custom_weekly', 'interval', 'monthly', 'yearly']
+        && (data.get('recurrenceInterval', null) == null
+          || (data.recurrenceInterval is int && data.recurrenceInterval >= 1 && data.recurrenceInterval <= 365))
+        && (data.get('recurrence', 'none') != 'interval' || data.get('recurrenceInterval', null) is int)
+        && (data.get('weekDays', null) == null || (data.weekDays is list && data.weekDays.size() <= 7))
+        && (data.get('recurrence', 'none') != 'custom_weekly'
+          || (data.get('weekDays', null) is list && data.weekDays.size() > 0))
+        && (data.get('recurrenceEndDate', null) == null || dateString(data.recurrenceEndDate));
+    }
+    function validSubtasks(data) {
+      return data.get('subtasks', []) is list && data.get('subtasks', []).size() <= 30;
     }
     function writeMetadata(data) {
       return data.lastModifiedBy == request.auth.uid && data.updatedAt == request.time;
@@ -54,49 +71,91 @@ service cloud.firestore {
     }
 
     match /tasks/{taskId} {
-      // Registros antigos sem isPrivate continuam compartilhados.
       allow read: if readableTask(resource.data);
       allow create: if member(request.resource.data.familyId)
         && request.resource.data.keys().hasAll([
           'title', 'description', 'dueDate', 'dueTime', 'category', 'isPrivate',
-          'familyId', 'userId', 'createdBy', 'createdAt', 'updatedAt',
+          'familyId', 'createdBy', 'createdAt', 'updatedAt',
           'lastModifiedBy', 'completed', 'recurrence', 'subtasks'
         ])
         && request.resource.data.keys().hasOnly([
           'title', 'description', 'dueDate', 'dueTime', 'category', 'isPrivate',
-          'familyId', 'userId', 'createdBy', 'createdAt', 'updatedAt',
-          'lastModifiedBy', 'completed', 'recurrence', 'subtasks'
+          'familyId', 'createdBy', 'createdAt', 'updatedAt',
+          'lastModifiedBy', 'completed', 'recurrence', 'subtasks',
+          'weekDays', 'recurrenceInterval', 'recurrenceEndDate'
         ])
         && taskOwner(request.resource.data)
-        && request.resource.data.userId == request.auth.uid
+        // Usuários comuns só criam tarefas públicas; privadas são de administradores.
+        && (request.resource.data.isPrivate == false || admin(request.resource.data.familyId))
         && request.resource.data.createdAt == request.time
         && writeMetadata(request.resource.data)
         && basicTask(request.resource.data)
         && request.resource.data.completed == false
-        && request.resource.data.recurrence == 'none'
-        && request.resource.data.subtasks == [];
+        && validRecurrence(request.resource.data)
+        && validSubtasks(request.resource.data);
 
-      // IDs, autoria, família e campos legados permanecem imutáveis.
+      // IDs, autoria e família permanecem imutáveis.
       allow update: if member(resource.data.familyId)
-        && resource.data.get('deletedAt', null) == null
         && writeMetadata(request.resource.data)
         && (
-          (taskOwner(resource.data)
+          // Concluir tarefa pendente: o criador na sua tarefa; admin nas compartilhadas.
+          // Subtarefas são marcadas pelo backend (agendaTaskOccurrence, action "toggleSubtask").
+          // Recorrentes são concluídas pelo backend, que arquiva e cria a próxima.
+          ((taskOwner(resource.data)
+              || (resource.data.isPrivate == false && admin(resource.data.familyId)))
+            && resource.data.get('completed', false) == false
+            && resource.data.get('skipped', false) == false
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed', 'lastModifiedBy', 'updatedAt'])
+            && request.resource.data.completed is bool
+            && (request.resource.data.completed == false
+              || resource.data.get('recurrence', 'none') == 'none')
+            )
+          // Restaurar uma concluída ou pulada: somente admin, na própria tarefa ou nas compartilhadas.
+          || (admin(resource.data.familyId)
+            && (taskOwner(resource.data) || resource.data.isPrivate == false)
+            && (resource.data.get('completed', false) == true || resource.data.get('skipped', false) == true)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed', 'skipped', 'lastModifiedBy', 'updatedAt'])
+            && request.resource.data.completed == false
+            && request.resource.data.get('skipped', false) == false)
+          // Editar detalhes: somente admin, na própria tarefa ou nas compartilhadas
+          // (nunca torna privada a tarefa de outra pessoa).
+          || (admin(resource.data.familyId)
+            && (taskOwner(resource.data)
+              || (resource.data.isPrivate == false && request.resource.data.isPrivate == false))
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'title', 'description', 'dueDate', 'dueTime', 'category', 'isPrivate',
-              'completed', 'lastModifiedBy', 'updatedAt'
+              'completed', 'lastModifiedBy', 'updatedAt', 'subtasks',
+              'recurrence', 'weekDays', 'recurrenceInterval', 'recurrenceEndDate'
             ])
-            && (
-              // Concluir registros antigos não exige preencher campos ausentes.
-              (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed', 'lastModifiedBy', 'updatedAt'])
-                && request.resource.data.completed is bool)
-              || (basicTask(request.resource.data) && request.resource.data.completed is bool)
-            ))
-          || (resource.data.get('isPrivate', false) == false && admin(resource.data.familyId)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed', 'lastModifiedBy', 'updatedAt'])
+            && basicTask(request.resource.data)
+            && validRecurrence(request.resource.data)
+            && validSubtasks(request.resource.data)
             && request.resource.data.completed is bool)
         );
-      allow delete: if false;
+      // Somente admin exclui; tarefas privadas só pelo próprio criador.
+      allow delete: if admin(resource.data.familyId)
+        && (resource.data.isPrivate == false || taskOwner(resource.data));
+    }
+
+    // Categorias da família (formato do app anterior). Qualquer membro cria;
+    // ninguém altera ou exclui pelo app.
+    match /categories/{categoryId} {
+      allow read: if member(resource.data.familyId);
+      allow create: if member(request.resource.data.familyId)
+        && request.resource.data.keys().hasOnly([
+          'label', 'icon', 'color', 'familyId', 'isDefault', 'createdBy', 'createdAt'
+        ])
+        && request.resource.data.label is string
+        && request.resource.data.label.size() > 0
+        && request.resource.data.label.size() <= 40
+        && request.resource.data.icon is string
+        && request.resource.data.icon.size() <= 60
+        && request.resource.data.color is string
+        && request.resource.data.color.size() <= 20
+        && request.resource.data.isDefault == false
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
     }
 
     // Funcionalidades antigas não utilizadas pelo aplicativo atual ficam fechadas.

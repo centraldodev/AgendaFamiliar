@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
+import { useTheme } from "../../styles/theme";
 
 export function TaskSkeleton({
   showNavigation = true,
 }: {
   showNavigation?: boolean;
 }) {
+  const { s, colors } = useTheme();
   const opacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -60,30 +62,35 @@ export function TaskSkeleton({
         importantForAccessibility="no-hide-descendants"
         style={[styles.content, { opacity }]}
       >
-        {showNavigation && <View style={styles.navigation} />}
+        {showNavigation && <View style={[styles.navigation, s.skeleton]} />}
         <View style={styles.row}>
           {[92, 100, 78].map((width) => (
-            <View key={width} style={[styles.chip, { width }]} />
+            <View key={width} style={[styles.chip, s.skeleton, { width }]} />
           ))}
         </View>
-        <View style={[styles.line, { width: "42%" }]} />
+        <View style={[styles.line, s.skeleton, { width: "42%" }]} />
         {[0, 1, 2].map((index) => (
-          <View key={index} style={styles.card}>
+          <View
+            key={index}
+            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
             <View style={styles.spaceBetween}>
-              <View style={[styles.line, { width: "30%", height: 12 }]} />
-              <View style={[styles.line, { width: "18%", height: 12 }]} />
+              <View style={[styles.line, s.skeleton, { width: "30%", height: 12 }]} />
+              <View style={[styles.line, s.skeleton, { width: "18%", height: 12 }]} />
             </View>
             <View
               style={[
                 styles.line,
+                s.skeleton,
                 { width: index === 1 ? "58%" : "76%", height: 23 },
               ]}
             />
-            <View style={[styles.line, { width: "88%" }]} />
-            <View style={[styles.line, { width: "36%", height: 13 }]} />
+            <View style={[styles.line, s.skeleton, { width: "88%" }]} />
+            <View style={[styles.line, s.skeleton, { width: "36%", height: 13 }]} />
             <View
               style={[
                 styles.line,
+                s.skeleton,
                 { width: 112, height: 40, borderRadius: 12 },
               ]}
             />
@@ -96,17 +103,15 @@ export function TaskSkeleton({
 
 const styles = StyleSheet.create({
   content: { gap: 20 },
-  navigation: { height: 52, borderRadius: 14, backgroundColor: "#e4eade" },
+  navigation: { height: 52, borderRadius: 14 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   spaceBetween: { flexDirection: "row", justifyContent: "space-between" },
-  chip: { height: 36, borderRadius: 20, backgroundColor: "#e4eade" },
-  line: { height: 16, borderRadius: 8, backgroundColor: "#e4eade" },
+  chip: { height: 36, borderRadius: 20 },
+  line: { height: 16, borderRadius: 8 },
   card: {
     padding: 22,
     gap: 17,
     borderRadius: 20,
-    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#e9ede4",
   },
 });

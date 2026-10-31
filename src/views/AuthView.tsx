@@ -2,8 +2,9 @@ import { Pressable, Text, View } from "react-native";
 import { Button } from "../components/ui/Button";
 import { Field } from "../components/ui/Field";
 import type { AgendaController } from "../controllers/AgendaController";
-import { appStyles as s } from "../styles/appStyles";
+import { useTheme } from "../styles/theme";
 export function AuthView({ controller }: { controller: AgendaController }) {
+  const { s } = useTheme();
   const {
     register,
     setRegister,
@@ -55,7 +56,7 @@ export function AuthView({ controller }: { controller: AgendaController }) {
       />
       <Button
         title={register ? "Já tenho uma conta" : "Criar uma conta"}
-        secondary
+        variant="secondary"
         disabled={busy}
         onPress={() => setRegister(!register)}
       />

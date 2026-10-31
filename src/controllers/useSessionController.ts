@@ -55,6 +55,19 @@ export function useSessionController() {
     setProfile(nextProfile);
     setFamily(nextFamily);
   };
+  // Recarrega perfil e família sem mostrar carregamento (papel ou grupo mudou).
+  const refreshQuietly = async () => {
+    if (!user) return;
+    const token = generation.current;
+    try {
+      const context = await withReadTimeout(loadSessionContext(user));
+      if (token !== generation.current) return;
+      setProfile(context.profile);
+      setFamily(context.family);
+    } catch {
+      // Mantém o estado atual; a próxima verificação tenta novamente.
+    }
+  };
   return {
     user,
     profile,
@@ -64,5 +77,6 @@ export function useSessionController() {
     generation,
     retry,
     adoptFamily,
+    refreshQuietly,
   };
 }

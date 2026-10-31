@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,7 +13,7 @@ import { NewTaskFab } from "../components/tasks/NewTaskFab";
 import { Button } from "../components/ui/Button";
 import type { AgendaController } from "../controllers/AgendaController";
 import { logout } from "../services/auth/logout";
-import { appStyles as s } from "../styles/appStyles";
+import { useTheme } from "../styles/theme";
 export function AppLayout({
   controller,
   children,
@@ -21,31 +21,44 @@ export function AppLayout({
   controller: AgendaController;
   children: React.ReactNode;
 }) {
+  const { s, name } = useTheme();
   const { actions, session, taskForm, showFab } = controller;
-  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  useEffect(() => {
-    if (taskForm.form) scrollRef.current?.scrollTo({ y: 0, animated: false });
-  }, [taskForm.form]);
   const error = actions.error || session.error;
+  // Nas configurações o cabeçalho some; o botão "Voltar" da tela fecha a área.
+  const inSettings =
+    controller.tab === "settings" && !!session.profile?.familyId && !!session.family;
   return (
     <SafeAreaView style={s.safe}>
-      <StatusBar style="dark" />
+      <StatusBar style={name === "dark" ? "light" : "dark"} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          ref={scrollRef}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[s.container, showFab && s.agendaContainer]}
         >
-          <AppHeader
-            signedIn={!!session.user}
-            onLogout={() => void actions.run(logout)}
-          />
+          {!inSettings && (
+            <AppHeader
+              signedIn={!!session.user}
+              showSettings={!!session.profile?.familyId && !!session.family}
+              settingsOpen={controller.tab === "settings"}
+              calendarOpen={controller.tab === "calendar"}
+              pendingCount={controller.familyManagement.pendingCount}
+              onToggleSettings={() => {
+                taskForm.setForm(false);
+                controller.setTab(controller.tab === "settings" ? "tasks" : "settings");
+              }}
+              onToggleCalendar={() => {
+                taskForm.setForm(false);
+                controller.setTab(controller.tab === "calendar" ? "tasks" : "calendar");
+              }}
+              onLogout={() => void actions.run(logout)}
+            />
+          )}
           {!!error && (
             <View accessibilityRole="alert" style={s.error}>
-              <Text style={{ color: "#9b3434" }}>{error}</Text>
+              <Text style={s.errorText}>{error}</Text>
               {session.user && !session.profile && !session.loading && (
                 <Button
                   title="Tentar carregar novamente"

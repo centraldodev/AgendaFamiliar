@@ -4,19 +4,48 @@
     "slug": "agenda-familiar-nova",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.natanael.agendafamiliar.nova"
+      "bundleIdentifier": "com.natanael.agendafamiliar.nova",
+      "icon": "./assets/icon.png"
     },
     "android": {
-      "package": "com.natanael.agendafamiliar.nova"
+      "package": "com.natanael.agendafamiliar.nova",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-status-bar"
-    ]
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default",
+          "icon": "./assets/notification-icon.png",
+          "color": "#0a72f0"
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0f1420"
+          }
+        }
+      ]
+    ],
+    "icon": "./assets/icon.png"
   }
 }

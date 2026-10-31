@@ -1,4 +1,6 @@
-export interface Task {
+import type { RecurrenceRule } from "./Recurrence";
+import type { Subtask } from "./Subtask";
+export interface Task extends Partial<RecurrenceRule> {
   id: string;
   title: string;
   description: string;
@@ -6,9 +8,16 @@ export interface Task {
   dueTime?: string | null;
   category: string;
   completed: boolean;
+  /** Recorrente pulada: arquivada sem concluir. */
+  skipped?: boolean;
   familyId: string;
   createdBy: string;
+  createdByName?: string | null;
+  /** ISO 8601, preenchido pelo backend. */
+  createdAt?: string | null;
+  lastModifiedBy?: string | null;
+  lastModifiedByName?: string | null;
+  updatedAt?: string | null;
   isPrivate?: boolean;
-  recurrence?: string;
-  subtasks?: unknown[];
+  subtasks?: Subtask[];
 }

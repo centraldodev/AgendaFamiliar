@@ -1,2 +1,2 @@
-export type AgendaTab = "tasks" | "family";
-export type TaskFilter = "pending" | "completed" | "private" | "all";
+export type AgendaTab = "tasks" | "calendar" | "settings";
+export type TaskFilter = "today" | "overdue" | "upcoming" | "completed" | "private" | "all";
