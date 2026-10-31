@@ -1,0 +1,182 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "agenda familiar",
+      "intents": [
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "ListTasksIntent",
+          "slots": [
+            {
+              "name": "date",
+              "type": "AMAZON.DATE"
+            }
+          ],
+          "samples": [
+            "o que tenho para hoje",
+            "o que tem para hoje",
+            "quais são as tarefas",
+            "minhas tarefas",
+            "o que tenho para {date}",
+            "quais as tarefas de {date}",
+            "o que tem {date}"
+          ]
+        },
+        {
+          "name": "OverdueTasksIntent",
+          "slots": [],
+          "samples": [
+            "o que está atrasado",
+            "tarefas atrasadas",
+            "o que venceu",
+            "quais tarefas estão vencidas"
+          ]
+        },
+        {
+          "name": "CreateTaskIntent",
+          "slots": [
+            {
+              "name": "taskName",
+              "type": "TASK_TITLE"
+            },
+            {
+              "name": "date",
+              "type": "AMAZON.DATE"
+            },
+            {
+              "name": "time",
+              "type": "AMAZON.TIME"
+            }
+          ],
+          "samples": [
+            "criar tarefa {taskName}",
+            "nova tarefa {taskName}",
+            "adicionar {taskName}",
+            "criar tarefa {taskName} para {date}",
+            "criar tarefa {taskName} {date}",
+            "criar tarefa {taskName} {date} às {time}",
+            "criar tarefa {taskName} às {time}",
+            "lembrar de {taskName} {date}"
+          ]
+        },
+        {
+          "name": "CompleteTaskIntent",
+          "slots": [
+            {
+              "name": "title",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "concluir tarefa {title}",
+            "concluir {title}",
+            "terminei {title}",
+            "marcar {title} como feita",
+            "já fiz {title}"
+          ]
+        }
+      ],
+      "types": [
+        {
+          "name": "TASK_TITLE",
+          "values": [
+            {
+              "name": {
+                "value": "comprar pão"
+              }
+            },
+            {
+              "name": {
+                "value": "pagar a conta de luz"
+              }
+            },
+            {
+              "name": {
+                "value": "levar o cachorro ao veterinário"
+              }
+            },
+            {
+              "name": {
+                "value": "reunião da escola"
+              }
+            },
+            {
+              "name": {
+                "value": "tomar remédio"
+              }
+            },
+            {
+              "name": {
+                "value": "buscar as crianças"
+              }
+            },
+            {
+              "name": {
+                "value": "lavar a roupa"
+              }
+            },
+            {
+              "name": {
+                "value": "fazer o mercado"
+              }
+            },
+            {
+              "name": {
+                "value": "ligar para a vovó"
+              }
+            },
+            {
+              "name": {
+                "value": "consulta no dentista"
+              }
+            },
+            {
+              "name": {
+                "value": "pagar o aluguel"
+              }
+            },
+            {
+              "name": {
+                "value": "limpar a casa"
+              }
+            },
+            {
+              "name": {
+                "value": "regar as plantas"
+              }
+            },
+            {
+              "name": {
+                "value": "trocar o óleo do carro"
+              }
+            },
+            {
+              "name": {
+                "value": "estudar para a prova"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
