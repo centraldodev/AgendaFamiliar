@@ -10,22 +10,27 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "build:web": "expo export --platform web",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-agenda-familiar \"npm --prefix firestore-tests test\""
+    "test:rules": "firebase emulators:exec --only firestore --project demo-agenda-familiar \"npm --prefix firestore-tests test\"",
+    "test:loading": "node --experimental-strip-types --test tests/loading.test.cjs",
+    "test": "node --experimental-strip-types --test tests/*.test.cjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "~2.2.0",
-    "expo": "~54.0.36",
-    "expo-status-bar": "~3.0.9",
+    "expo": "^58.0.21",
+    "expo-status-bar": "~58.0.4",
     "firebase": "^12.7.0",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-safe-area-context": "~5.6.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.10.1",
     "react-native-web": "~0.21.0"
   },
   "devDependencies": {
-    "@types/react": "~19.1.0",
-    "babel-preset-expo": "~54.0.11",
-    "typescript": "~5.9.2"
+    "@types/react": "~19.3.0",
+    "babel-preset-expo": "~58.0.0",
+    "typescript": "~6.0.3"
+  },
+  "engines": {
+    "node": "^22.13.0 || ^24.3.0 || >=26.0.0"
   }
 }

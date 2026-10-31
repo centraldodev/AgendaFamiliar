@@ -6,7 +6,8 @@
     "node": "22"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "npm run build && node --test tests/*.test.cjs"
   },
   "dependencies": {
     "firebase-admin": "^12.6.0",

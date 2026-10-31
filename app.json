@@ -9,7 +9,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.natanael.agendafamiliar.nova"
     },
-    "android": { "package": "com.natanael.agendafamiliar.nova" },
-    "web": { "bundler": "metro" }
+    "android": {
+      "package": "com.natanael.agendafamiliar.nova"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
   }
 }

@@ -1,8 +1,14 @@
 # Agenda Familiar
 
-Aplicativo em React Native + TypeScript + Expo. Esta é a única versão local do Agenda Familiar; a versão anterior permanece no histórico Git.
+Aplicativo em React Native + TypeScript + Expo SDK 58. Esta é a única versão local do Agenda Familiar; a versão anterior permanece no histórico Git.
+
+## Estrutura do projeto
+
+A aplicação está organizada em `models`, `views`, `components`, `controllers`, `routes`, `middlewares`, `services`, `config`, `styles` e `utils`. Veja [ARCHITECTURE.md](ARCHITECTURE.md) para responsabilidades, convenções e exemplos de localização dos arquivos. Cada função pública, componente e hook tem seu próprio arquivo.
 
 ## Executar
+
+Use Node.js 22.13 ou superior da linha 22 (`nvm use`) e Expo Go compatível com o SDK 58. Para limpar o cache após a atualização, execute `npm start -- --clear`.
 
 ```sh
 npm install
@@ -63,3 +69,11 @@ Backup local das regras anteriormente publicadas: `.local-backups/firestore-befo
 ## Estado desta entrega
 
 As duas funções foram publicadas em `agendafamiliarkotlin` em 31/10/2026. Os endpoints responderam `401 UNAUTHENTICATED` ao teste sem sessão. TypeScript, exportação web, bundle Android e os três testes de visibilidade passaram. Tela de entrada conferida no Chrome. O usuário também confirmou que testou o aplicativo com sucesso. Não foram criados documentos de teste pelo agente no banco real.
+
+## Atualização para SDK 58
+
+Dependências alinhadas pelo Expo: Expo 58.0.21, React Native 0.88.1, React/React DOM 19.3.0 e TypeScript 6.0.3. Expo Doctor aprovou 20/20 verificações; TypeScript e exportação dos bundles web, Android e iOS passaram. A agenda foi conferida no navegador sem novos erros de renderização. A exportação dos bundles não substitui a compilação e o teste em dispositivos nativos.
+
+## Carregamento e falhas de conexão
+
+As leituras da sessão e das tarefas têm prazo de 15 segundos por etapa. Ao falhar, o skeleton termina e o aplicativo oferece nova tentativa, sem apresentar uma lista vazia como se a consulta tivesse funcionado. A atualização periódica não acumula chamadas pendentes; respostas antigas são descartadas após troca de sessão ou atualização mais recente. Tarefas já exibidas permanecem visíveis durante falhas de atualização. Testes de regressão: `npm run test:loading`.

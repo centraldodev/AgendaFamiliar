@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { canReadTask } = require("../lib/visibility");
+const { canReadTask } = require("../lib/middlewares/canReadTask");
 const task = { familyId: "family-a", createdBy: "alice" };
 test("família lê tarefas compartilhadas e registros antigos", () => {
   assert.equal(canReadTask(task, "bob", "family-a"), true);
