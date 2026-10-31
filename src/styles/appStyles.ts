@@ -190,6 +190,10 @@ export function createAppStyles(c: ColorTokens) {
     sheetBackdrop: { flex: 1, backgroundColor: c.overlay },
     sheet: {
       maxHeight: "90%",
+      // No navegador/tablet não ocupa a tela toda.
+      width: "100%",
+      maxWidth: 560,
+      alignSelf: "center",
       backgroundColor: c.surface,
       borderTopLeftRadius: radius.xxl,
       borderTopRightRadius: radius.xxl,

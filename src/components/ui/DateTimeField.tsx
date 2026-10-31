@@ -1,11 +1,12 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import { useTheme } from "../../styles/theme";
+import { displayDateTime, maskDateTime, parseDateTime } from "../../utils/maskDateTime";
 import { Field } from "./Field";
 const pad = (n: number) => String(n).padStart(2, "0");
 // Seletor nativo de data (AAAA-MM-DD) ou hora (HH:MM). Na web, o seletor nativo
-// não existe e o campo vira texto no mesmo formato.
+// não existe: o campo vira texto com máscara (DD/MM/AAAA, HH:MM), só números.
 export function DateTimeField({
   label,
   mode,
@@ -24,15 +25,7 @@ export function DateTimeField({
   const { s, colors, name } = useTheme();
   const [open, setOpen] = useState(false);
   if (Platform.OS === "web")
-    return (
-      <Field
-        label={label}
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        maxLength={mode === "date" ? 10 : 5}
-      />
-    );
+    return <MaskedDateTimeField label={label} mode={mode} value={value} onChange={onChange} />;
   const current = (() => {
     const now = new Date();
     if (mode === "date" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -86,6 +79,50 @@ export function DateTimeField({
           }}
         />
       )}
+    </View>
+  );
+}
+
+function MaskedDateTimeField({
+  label,
+  mode,
+  value,
+  onChange,
+}: {
+  label: string;
+  mode: "date" | "time";
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const { s } = useTheme();
+  const [text, setText] = useState(() => displayDateTime(value, mode));
+  const [error, setError] = useState("");
+  // Valor trocado por fora (ex.: abrir outra tarefa) substitui o que estava digitado.
+  useEffect(() => {
+    // Incompleto/inválido equivale a "" (o que foi enviado), então não apaga a digitação.
+    if ((parseDateTime(text, mode).value ?? "") !== value) setText(displayDateTime(value, mode));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, mode]);
+  const change = (raw: string) => {
+    const masked = maskDateTime(raw, mode);
+    setText(masked);
+    const parsed = parseDateTime(masked, mode);
+    setError(parsed.error ?? "");
+    // Incompleto ou inválido: limpa o valor salvo para o formulário não aceitar.
+    onChange(parsed.value ?? "");
+  };
+  return (
+    <View style={{ gap: 6 }}>
+      <Field
+        label={label}
+        value={text}
+        onChangeText={change}
+        placeholder={mode === "date" ? "DD/MM/AAAA" : "HH:MM"}
+        keyboardType="number-pad"
+        inputMode="numeric"
+        maxLength={mode === "date" ? 10 : 5}
+      />
+      {!!error && <Text style={s.errorText}>{error}</Text>}
     </View>
   );
 }
