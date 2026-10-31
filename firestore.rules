@@ -41,6 +41,13 @@ service cloud.firestore {
     function validSubtasks(data) {
       return data.get('subtasks', []) is list && data.get('subtasks', []).size() <= 30;
     }
+    // Responsável: ninguém, ou um membro da mesma família; tarefa privada não tem.
+    function validAssignee(data) {
+      return data.get('assignedTo', null) == null
+        || (data.assignedTo is string && data.isPrivate == false
+          && get(/databases/$(database)/documents/users/$(data.assignedTo)).data.get('familyId', null) == data.familyId);
+    }
+    function taskAssignee(data) { return signedIn() && data.get('assignedTo', null) == request.auth.uid; }
     function writeMetadata(data) {
       return data.lastModifiedBy == request.auth.uid && data.updatedAt == request.time;
     }
@@ -57,10 +64,12 @@ service cloud.firestore {
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() <= 120;
       // Vínculo familiar e papel são definidos exclusivamente pelo backend.
+      // Nome e preferência de lembrete (minutos antes; -1 = desligado).
       allow update: if self(uid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'reminderMinutes'])
         && request.resource.data.displayName is string
-        && request.resource.data.displayName.size() <= 120;
+        && request.resource.data.displayName.size() <= 120
+        && request.resource.data.get('reminderMinutes', 0) in [-1, 0, 15, 30, 60, 120, 1440];
       allow delete: if false;
     }
 
@@ -82,7 +91,7 @@ service cloud.firestore {
           'title', 'description', 'dueDate', 'dueTime', 'category', 'isPrivate',
           'familyId', 'createdBy', 'createdAt', 'updatedAt',
           'lastModifiedBy', 'completed', 'recurrence', 'subtasks',
-          'weekDays', 'recurrenceInterval', 'recurrenceEndDate'
+          'weekDays', 'recurrenceInterval', 'recurrenceEndDate', 'assignedTo'
         ])
         && taskOwner(request.resource.data)
         // Usuários comuns só criam tarefas públicas; privadas são de administradores.
@@ -92,16 +101,17 @@ service cloud.firestore {
         && basicTask(request.resource.data)
         && request.resource.data.completed == false
         && validRecurrence(request.resource.data)
-        && validSubtasks(request.resource.data);
+        && validSubtasks(request.resource.data)
+        && validAssignee(request.resource.data);
 
       // IDs, autoria e família permanecem imutáveis.
       allow update: if member(resource.data.familyId)
         && writeMetadata(request.resource.data)
         && (
-          // Concluir tarefa pendente: o criador na sua tarefa; admin nas compartilhadas.
+          // Concluir tarefa pendente: o criador ou o responsável; admin nas compartilhadas.
           // Subtarefas são marcadas pelo backend (agendaTaskOccurrence, action "toggleSubtask").
           // Recorrentes são concluídas pelo backend, que arquiva e cria a próxima.
-          ((taskOwner(resource.data)
+          ((taskOwner(resource.data) || taskAssignee(resource.data)
               || (resource.data.isPrivate == false && admin(resource.data.familyId)))
             && resource.data.get('completed', false) == false
             && resource.data.get('skipped', false) == false
@@ -125,9 +135,10 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'title', 'description', 'dueDate', 'dueTime', 'category', 'isPrivate',
               'completed', 'lastModifiedBy', 'updatedAt', 'subtasks',
-              'recurrence', 'weekDays', 'recurrenceInterval', 'recurrenceEndDate'
+              'recurrence', 'weekDays', 'recurrenceInterval', 'recurrenceEndDate', 'assignedTo'
             ])
             && basicTask(request.resource.data)
+            && validAssignee(request.resource.data)
             && validRecurrence(request.resource.data)
             && validSubtasks(request.resource.data)
             && request.resource.data.completed is bool)

@@ -3,6 +3,7 @@ import React from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -11,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { AppHeader } from "../components/layout/AppHeader";
 import { NewTaskFab } from "../components/tasks/NewTaskFab";
 import { Button } from "../components/ui/Button";
+import { UndoBar } from "../components/ui/UndoBar";
 import type { AgendaController } from "../controllers/AgendaController";
 import { logout } from "../services/auth/logout";
 import { useTheme } from "../styles/theme";
@@ -21,7 +23,21 @@ export function AppLayout({
   controller: AgendaController;
   children: React.ReactNode;
 }) {
-  const { s, name } = useTheme();
+  const { s, name, colors } = useTheme();
+  const [refreshing, setRefreshing] = React.useState(false);
+  // Puxar para atualizar: reconecta a lista e recarrega família e perfil.
+  const pullToRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        controller.tasks.retry(),
+        controller.familyManagement.refresh().catch(() => {}),
+        controller.session.refreshQuietly().catch(() => {}),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const { actions, session, taskForm, showFab } = controller;
   const error = actions.error || session.error;
   // Nas configurações o cabeçalho some; o botão "Voltar" da tela fecha a área.
@@ -36,6 +52,16 @@ export function AppLayout({
       >
         <ScrollView
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            session.profile?.familyId ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => void pullToRefresh()}
+                tintColor={colors.primary}
+                colors={[colors.primary]}
+              />
+            ) : undefined
+          }
           contentContainerStyle={[s.container, showFab && s.agendaContainer]}
         >
           {!inSettings && (
@@ -71,6 +97,9 @@ export function AppLayout({
           {!!actions.notice && <Text style={s.notice}>{actions.notice}</Text>}
           {children}
         </ScrollView>
+        {controller.tasks.pending && (
+          <UndoBar label={controller.tasks.pending.label} onUndo={controller.tasks.undo} />
+        )}
         {showFab && (
           <NewTaskFab
             disabled={actions.busy}

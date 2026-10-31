@@ -1,6 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { canReadTask } = require("../lib/middlewares/canReadTask");
+const { canRead } = require("../lib/shared/taskPermissions");
+const canReadTask = (task, uid, familyId) => canRead(task, { uid, familyId, role: "user" });
 const task = { familyId: "family-a", createdBy: "alice" };
 test("família lê tarefas compartilhadas", () => {
   assert.equal(canReadTask(task, "bob", "family-a"), true);
@@ -27,7 +28,7 @@ test("não entrega dados de outra família", () => {
   assert.equal(canReadTask(task, "alice", "family-b"), false);
 });
 test("concluída há mais de uma semana expira; recentes e pendentes não", () => {
-  const { isExpiredCompletedTask } = require("../lib/middlewares/isExpiredCompletedTask");
+  const { isExpiredCompletedTask } = require("../lib/shared/isExpiredCompletedTask");
   const day = 24 * 60 * 60 * 1000;
   const now = Date.UTC(2026, 9, 31);
   const at = (days) => ({ toMillis: () => now - days * day });
@@ -48,4 +49,13 @@ test("aviso de vencimento: só na janela, só pendentes, no horário de Brasíli
   assert.equal(isReminderDue(t({ dueTime: null }), new Date(Date.UTC(2026, 9, 31, 11, 5))), true);
   assert.equal(reminderKey(t({ dueTime: null })), "2026-10-31 08:00");
   assert.notEqual(reminderKey(t({ dueTime: "15:00" })), reminderKey(t({ dueDate: "2026-11-01", dueTime: "15:00" })));
+});
+test("lembrete com antecedência e desligado", () => {
+  const { isReminderDue } = require("../lib/services/dueReminder");
+  const t = { dueDate: "2026-10-31", dueTime: "15:00", completed: false };
+  const at = (h, m) => new Date(Date.UTC(2026, 9, 31, h + 3, m)); // Brasília = UTC-3
+  assert.equal(isReminderDue(t, at(14, 30), 30), true);
+  assert.equal(isReminderDue(t, at(14, 0), 30), false);
+  assert.equal(isReminderDue(t, at(15, 0), -1), false);
+  assert.equal(isReminderDue({ ...t, dueDate: "2026-11-01" }, at(15, 10), 1440), true);
 });

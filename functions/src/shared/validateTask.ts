@@ -17,7 +17,7 @@ const validTime = (value: unknown): value is string =>
 const optionalString = (value: unknown) => (typeof value === "string" && value ? value : null);
 export const taskFields = [
   "title", "description", "dueDate", "dueTime", "category", "isPrivate",
-  "subtasks", "recurrence", "weekDays", "recurrenceInterval", "recurrenceEndDate",
+  "subtasks", "recurrence", "weekDays", "recurrenceInterval", "recurrenceEndDate", "assignedTo",
 ] as const;
 /** Valida uma tarefa completa e devolve os campos normalizados ou a lista de erros por campo. */
 export function validateTask(merged: Raw) {
@@ -37,6 +37,12 @@ export function validateTask(merged: Raw) {
     fail("category", "Informe a categoria (até 100 caracteres).");
   const isPrivate = merged.isPrivate ?? false;
   if (typeof isPrivate !== "boolean") fail("isPrivate", "Use true ou false.");
+  // Responsável: uid de um membro da família (conferido no servidor) ou null.
+  const assignedTo = merged.assignedTo ?? null;
+  if (assignedTo !== null && (typeof assignedTo !== "string" || !assignedTo || assignedTo.length > 128))
+    fail("assignedTo", "Responsável inválido.");
+  else if (assignedTo !== null && isPrivate === true)
+    fail("assignedTo", "Tarefa privada não tem responsável.");
   const recurrence = merged.recurrence ?? "none";
   if (typeof recurrence !== "string" || !recurrences.includes(recurrence))
     fail("recurrence", `Use um destes valores: ${recurrences.join(", ")}.`);
@@ -93,6 +99,7 @@ export function validateTask(merged: Raw) {
     dueTime: dueTime || null,
     category: category as string,
     isPrivate: isPrivate as boolean,
+    assignedTo: assignedTo as string | null,
     subtasks,
     recurrence: recurrence as string,
     weekDays,

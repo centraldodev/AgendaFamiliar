@@ -20,7 +20,7 @@ test('filtros separam hoje (só a data de hoje), futuras, concluídas e privadas
  assert.deepEqual(filterTasks([{id:'x',completed:true,dueDate:'2026-10-01'},{id:'y',completed:true,dueDate:'2026-10-20'}],'completed','2026-10-31').map(t=>t.id),['y','x']);
  assert.deepEqual(filterTasks([{id:'z',completed:false}],'today','2026-10-31').map(t=>t.id),['z']);
  assert.deepEqual(ids('private'),['c']);
- assert.equal(ids('all').length,5);assert.equal(tasks.length,5);assert.equal(tasks[0].id,'a');
+ assert.equal(tasks.length,5);assert.equal(tasks[0].id,'a');
 });
 test('administrador só conclui tarefas alheias compartilhadas',()=>{
  const task={createdBy:'alice',isPrivate:false};

@@ -19,5 +19,8 @@ export interface Task extends Partial<RecurrenceRule> {
   lastModifiedByName?: string | null;
   updatedAt?: string | null;
   isPrivate?: boolean;
+  /** Responsável (uid de um membro) ou null. */
+  assignedTo?: string | null;
+  assignedToName?: string | null;
   subtasks?: Subtask[];
 }

@@ -29,6 +29,8 @@ export function TaskFormView({ controller }: { controller: AgendaController }) {
     setCategory,
     privateTask,
     setPrivate,
+    assignedTo,
+    setAssignedTo,
     subtasks,
     addSubtask,
     updateSubtask,
@@ -41,6 +43,7 @@ export function TaskFormView({ controller }: { controller: AgendaController }) {
   const { busy, run, error } = controller.actions;
   const { profile } = controller.session;
   const [newSubtask, setNewSubtask] = useState("");
+  const members = controller.familyManagement.overview?.members ?? [];
   // Só administradores usam tarefas privadas, e apenas nas suas próprias.
   const canChoosePrivacy =
     canCreatePrivateTask(profile) &&
@@ -104,6 +107,21 @@ export function TaskFormView({ controller }: { controller: AgendaController }) {
         createLabel="Nova categoria"
         iconOf={categoryIcon}
       />
+      {!privateTask && (
+        <OptionPicker
+          label="Responsável"
+          options={[
+            ["", "Ninguém em especial"],
+            ...members.map((m): [string, string] => [
+              m.uid,
+              m.uid === profile?.uid ? `${m.displayName || m.email} (você)` : m.displayName || m.email || "Membro",
+            ]),
+          ]}
+          value={assignedTo ?? ""}
+          onChange={(value) => setAssignedTo(value || null)}
+          iconOf={(key) => (key ? "person-outline" : "people-outline")}
+        />
+      )}
       <RecurrencePicker value={recurrenceRule} onChange={setRecurrenceRule} />
       {canChoosePrivacy && (
         <View style={s.row}>

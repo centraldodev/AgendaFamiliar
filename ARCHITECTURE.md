@@ -58,13 +58,14 @@ functions/src/
 ## Papéis e permissões
 
 - Há dois papéis: `admin` e `user`. Sem papel definido vale como `user`.
-- `user`: cria tarefas públicas, conclui as tarefas que criou e marca as subtarefas delas. Marcar a última subtarefa conclui a tarefa.
+- `user`: cria tarefas públicas, conclui as tarefas que criou ou de que é responsável e marca as subtarefas delas. Marcar a última subtarefa conclui a tarefa.
+- Responsável (`assignedTo`): um membro da família, escolhido no formulário; tarefa privada não tem. Ele pode concluir a tarefa, vê ela no filtro `Minhas` e recebe push ao ser designado (`agendaTaskCreated`/`agendaTaskUpdated`).
 - `admin`: tudo isso, mais criar tarefas privadas, editar e excluir tarefas compartilhadas (e as próprias privadas), restaurar tarefas concluídas (só um admin reabre uma concluída), aprovar ou recusar entradas, mudar o papel de membros e removê-los. Tarefas privadas de outras pessoas continuam fora do alcance de qualquer administrador.
 - As regras estão em `firestore.rules` (tarefas) e nos serviços de `functions/src/services` (família); o app apenas espelha as permissões em `src/middlewares`.
 
 ## Filtros da agenda
 
-- `Hoje`: pendentes com data de hoje (e registros antigos sem data); atrasadas aparecem só em `Todas`. `Futuras`: pendentes do dia seguinte em diante. `Concluídas`: concluídas nos últimos 7 dias, mais recentes primeiro; as mais antigas somem do app e são apagadas pelo backend na próxima listagem (`handleListTasks`). `Privadas`: tarefas privadas do usuário (o filtro só aparece quando útil). `Todas`: tudo.
+- `Hoje`: pendentes com data de hoje. `Minhas`: pendentes em que você é o responsável. `Vencidas`: pendentes atrasadas. `Futuras`: pendentes do dia seguinte em diante. `Concluídas`: concluídas nos últimos 7 dias, mais recentes primeiro; as mais antigas somem do app e são apagadas pela `agendaCleanup`. `Privadas`: tarefas privadas do usuário (o filtro só aparece quando útil).
 - A regra fica em `utils/filterTasks.ts`; se o filtro `Privadas` deixar de estar disponível, a tela volta para `Hoje`.
 
 ## Recorrência e subtarefas
@@ -73,7 +74,10 @@ functions/src/
 - Concluir uma recorrente (pelo botão ou marcando a última subtarefa) ou pular a recorrência passa pelo backend (`agendaTaskOccurrence`): a atual é arquivada (concluída, ou `skipped` quando pulada) e uma nova é criada na próxima data depois de hoje, com o mesmo autor, subtarefas desmarcadas e `previousOccurrenceId`. Passada a data final, só arquiva. Puladas aparecem em `Concluídas` e só um admin as restaura. O cálculo está em `functions/src/shared/nextOccurrence.ts`, usado também pelo app.
 - Subtarefas: até 30 por tarefa, criadas e editadas no formulário. Marcar segue a permissão de concluir e passa pelo backend (`agendaTaskOccurrence`, ação `toggleSubtask`): as regras não deixam o app reescrever a lista, porque rules não conseguem comparar item por item. Marcar a última conclui a tarefa (recorrente: cria a próxima).
 - Concluídas ou puladas há mais de 7 dias saem da lista e são apagadas pela `agendaCleanup` (diária, 03:30). A listagem não grava nada.
-- O app atualiza a lista a cada 60s, as configurações a cada 30s (abertas) ou 120s, e a espera de aprovação a cada 30s, tudo só em primeiro plano (`controllers/usePolling.ts`). Ao voltar ao app e ao receber uma notificação, atualiza na hora.
+- A lista chega em tempo real (`services/tasks/subscribeTasks.ts`): duas consultas, compartilhadas e as minhas, porque as regras só liberam consultas que fixam `isPrivate` ou `createdBy`. Os nomes de autor e responsável vêm da lista de membros. A última lista fica salva no aparelho (`taskCache.ts`) para abrir sem internet; o cache é apagado ao sair.
+- Configurações e espera de aprovação consultam periodicamente, só em primeiro plano (`controllers/usePolling.ts`): 30s com as configurações abertas, 120s fora delas, e 30s na espera. Puxar a tela para baixo atualiza tudo.
+- Busca por título, descrição e subtarefas, sem diferenciar acentos (`utils/searchTasks.ts`).
+- Concluir e excluir esperam 5s com o aviso "Desfazer" antes de gravar; restaurar é imediato.
 
 ## Entrada no grupo, histórico e notificações
 
@@ -81,12 +85,18 @@ functions/src/
 - Um administrador aceita (escolhendo `user` ou `admin`) ou recusa, no app ou pelos botões da notificação. Quem já está em um grupo continua nele até a aprovação; então a troca acontece e a saída é registrada.
 - Todo evento (pedido, aprovação com quem aprovou, horário e acesso concedido, recusa, mudança de papel, remoção, saída) é gravado em `families/{id}/history`, somente pelo backend, e lido por administradores.
 - Tarefa pública criada: `agendaTaskCreated` (gatilho do Firestore) avisa os outros membros. Privadas não geram aviso.
-- Vencimento: `agendaDueReminders` roda a cada 5 minutos e avisa no horário da tarefa (sem horário: 08:00, Brasília). Pública: toda a família; privada: só quem criou. Lê o estado atual a cada execução, então exclusão, conclusão ou mudança de data já valem; `dueReminders/{taskId}` evita aviso repetido da mesma ocorrência. O app não agenda lembretes locais.
+- Vencimento: `agendaDueReminders` roda a cada 5 minutos. Cada pessoa escolhe em Configurações › Lembretes quando ser avisada (`users.reminderMinutes`: no horário, 15/30/60/120 min ou 1 dia antes, ou -1 para nunca). Sem horário, a tarefa conta como 08:00 (Brasília). Pública: toda a família; privada: só quem criou. Lê o estado atual a cada execução, então exclusão, conclusão ou mudança de data já valem; `dueReminders/{taskId}_{uid}` evita aviso repetido. O app não agenda lembretes locais.
 - O token de push do aparelho fica em `users/{uid}.pushTokens` e é enviado pelo serviço Expo Push. Push remoto exige app instalado (development build/EAS) em aparelho real; no Expo Go do Android o app funciona sem notificações, e os pedidos aparecem em Configurações.
+
+## Conta
+
+- Configurações reúne aparência, lembretes, tokens da API, sair e excluir conta.
+- Excluir conta (`agendaAccount`, exigência da Play Store): pede a senha de novo (o servidor exige login com menos de 10 min). Apaga perfil, tarefas privadas, tokens e pedidos; tira a pessoa de responsável nas compartilhadas, que ficam com a família. O único membro apaga o grupo inteiro; o único admin com outros membros precisa promover alguém antes.
+- Login com Google: na web por popup; no Android por `@react-native-google-signin` (só no app instalado, não no Expo Go). Exige o SHA-1 da chave de assinatura do EAS cadastrado no app Android do Firebase.
 
 ## API REST
 
-Função `agendaApi` (`functions/src/api`), em `https://us-central1-<projeto>.cloudfunctions.net/agendaApi/v1/...`. Autenticação por `Authorization: Bearer <token>`, que pode ser o ID token do Firebase ou um token pessoal `agf_…` (guardado só como SHA-256 em `apiTokens`). Limites: 300 req/min por IP antes da autenticação e 120 req/min por usuário depois, contados em cada instância (com até 3 instâncias, o teto real é o triplo). Tokens recusados ficam 5 min em cache, sem nova leitura no banco. Os erros saem em `application/problem+json`, com `errors[]` por campo quando a resposta é 422. As permissões são as de `services/taskPermissions.ts` e a validação a de `services/validateTaskBody.ts`, ambas espelhos do app e do `firestore.rules`.
+Função `agendaApi` (`functions/src/api`), em `https://us-central1-<projeto>.cloudfunctions.net/agendaApi/v1/...`. Autenticação por `Authorization: Bearer <token>`, que pode ser o ID token do Firebase ou um token pessoal `agf_…` (guardado só como SHA-256 em `apiTokens`). Limites: 300 req/min por IP antes da autenticação e 120 req/min por usuário depois, contados em cada instância (com até 3 instâncias, o teto real é o triplo). Tokens recusados ficam 5 min em cache, sem nova leitura no banco. Os erros saem em `application/problem+json`, com `errors[]` por campo quando a resposta é 422. As permissões e a validação vêm de `functions/src/shared/`, as mesmas do app.
 
 - `GET /v1/me` e `GET /v1/family`
 - `GET /v1/tasks?from&to&status=open|done|all&category`, `POST /v1/tasks`, `GET|PATCH|DELETE /v1/tasks/:id`

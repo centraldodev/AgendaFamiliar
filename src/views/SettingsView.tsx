@@ -1,5 +1,8 @@
 import { Pressable, Text, View } from "react-native";
+import { ApiTokensCard } from "../components/settings/ApiTokensCard";
 import { AppearanceCard } from "../components/settings/AppearanceCard";
+import { DeleteAccountCard } from "../components/settings/DeleteAccountCard";
+import { ReminderCard } from "../components/settings/ReminderCard";
 import { FamilyCodeCard } from "../components/settings/FamilyCodeCard";
 import { HistoryCard } from "../components/settings/HistoryCard";
 import { JoinFamilyCard } from "../components/settings/JoinFamilyCard";
@@ -8,7 +11,9 @@ import { Button } from "../components/ui/Button";
 import { MembersCard } from "../components/settings/MembersCard";
 import type { AgendaController } from "../controllers/AgendaController";
 import { isAdmin } from "../middlewares/isAdmin";
+import { deleteAccount } from "../services/auth/deleteAccount";
 import { logout } from "../services/auth/logout";
+import { saveReminderMinutes } from "../services/settings/saveReminderMinutes";
 import { Icon } from "../components/ui/Icon";
 import { useTheme } from "../styles/theme";
 import { confirmAction } from "../utils/confirmAction";
@@ -79,11 +84,22 @@ export function SettingsView({ controller }: { controller: AgendaController }) {
       />
       {admin && <HistoryCard entries={overview?.history ?? []} />}
       <AppearanceCard />
+      <ReminderCard
+        value={profile.reminderMinutes ?? 0}
+        busy={busy}
+        onChange={(minutes) =>
+          void run(async () => {
+            await saveReminderMinutes(minutes);
+            await controller.session.refreshQuietly();
+          })
+        }
+      />
       <View style={s.card}>
         <Text style={s.heading}>Conta</Text>
         <Text style={s.muted}>{profile.email}</Text>
         <Text style={s.muted}>{pushMessages[notifications.status]}</Text>
       </View>
+      <ApiTokensCard />
       <Button
         title="Sair da conta"
         variant="danger"
@@ -96,6 +112,19 @@ export function SettingsView({ controller }: { controller: AgendaController }) {
               "Sair",
             );
             if (confirmed) await logout();
+          })
+        }
+      />
+      <DeleteAccountCard
+        busy={busy}
+        onDelete={(password) =>
+          void run(async () => {
+            const confirmed = await confirmAction(
+              "Excluir conta",
+              "Sua conta e seus dados pessoais serão apagados agora. Continuar?",
+              "Excluir",
+            );
+            if (confirmed) await deleteAccount(password);
           })
         }
       />

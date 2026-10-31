@@ -3,6 +3,12 @@
 export const appTimeZone = "America/Sao_Paulo";
 /** Horário do aviso para tarefas sem horário definido. */
 export const defaultReminderTime = "08:00";
+/** Antecedências aceitas (minutos), escolhidas em Configurações; -1 desliga. */
+export const reminderOptions = [-1, 0, 15, 30, 60, 120, 1440] as const;
+export const leadMinutesOf = (profile: Record<string, unknown> | undefined) => {
+  const value = profile?.reminderMinutes;
+  return typeof value === "number" && (reminderOptions as readonly number[]).includes(value) ? value : 0;
+};
 /** Atraso máximo para ainda enviar (cobre falhas pontuais do agendador). */
 export const reminderWindowMinutes = 60;
 export function localParts(now: Date) {
@@ -32,9 +38,10 @@ const minutesOf = (date: string, time: string) =>
 export function reminderKey(task: Record<string, unknown>) {
   return `${task.dueDate} ${task.dueTime || defaultReminderTime}`;
 }
-// Avisa pendentes cujo horário chegou há no máximo reminderWindowMinutes.
-// Tarefas criadas já vencidas não disparam aviso.
-export function isReminderDue(task: Record<string, unknown>, now: Date) {
+// Avisa pendentes cujo horário (menos a antecedência) chegou há no máximo
+// reminderWindowMinutes. Tarefas criadas já vencidas não disparam aviso.
+export function isReminderDue(task: Record<string, unknown>, now: Date, leadMinutes = 0) {
+  if (leadMinutes < 0) return false;
   if (task.completed === true || task.skipped === true) return false;
   if (typeof task.dueDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(task.dueDate))
     return false;
@@ -43,6 +50,6 @@ export function isReminderDue(task: Record<string, unknown>, now: Date) {
       ? task.dueTime
       : defaultReminderTime;
   const local = localParts(now);
-  const late = minutesOf(local.date, local.time) - minutesOf(task.dueDate, time);
+  const late = minutesOf(local.date, local.time) - (minutesOf(task.dueDate, time) - leadMinutes);
   return late >= 0 && late <= reminderWindowMinutes;
 }

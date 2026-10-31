@@ -1,69 +1,115 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { TaskFilter } from "../models/Navigation";
 import type { Profile } from "../models/Profile";
 import type { Task } from "../models/Task";
-import { loadTasks } from "../services/tasks/loadTasks";
-import { usePolling } from "./usePolling";
-import { deleteTask } from "../services/tasks/deleteTask";
 import { advanceTask } from "../services/tasks/advanceTask";
+import { deleteTask } from "../services/tasks/deleteTask";
+import { subscribeTasks } from "../services/tasks/subscribeTasks";
+import { readTaskCache, writeTaskCache } from "../services/tasks/taskCache";
 import { toggleSubtask } from "../services/tasks/toggleSubtask";
 import { toggleTask } from "../services/tasks/toggleTask";
 import { filterTasks } from "../utils/filterTasks";
 import { message } from "../utils/message";
-import { createReadController } from "./requests/createReadController";
+import { searchTasks } from "../utils/searchTasks";
+/** Ação adiada por alguns segundos para dar tempo de desfazer. */
+export interface PendingAction {
+  taskId: string;
+  label: string;
+}
+const undoMs = 5000;
+// Tarefas da família em tempo real (sem consulta periódica). Sem internet, mostra a
+// última lista salva no aparelho até o Firestore responder.
 export function useTaskController(
   profile: Profile | null,
-  generation: RefObject<number>,
+  names: Map<string, string>,
+  onActionError: (error: unknown) => void,
 ) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<TaskFilter>("today");
-  const feed = useRef<ReturnType<typeof createReadController<Task[]>> | null>(
-    null,
-  );
+  const [search, setSearch] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const pendingRun = useRef<{ run: () => Promise<void>; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const namesRef = useRef(names);
+  namesRef.current = names;
+  const feed = useRef<ReturnType<typeof subscribeTasks> | null>(null);
+  const uid = profile?.uid;
+  const familyId = profile?.familyId;
   useEffect(() => {
     setTasks([]);
     setLoading(true);
     setLoaded(false);
     setError("");
-    if (!profile?.familyId) return;
-    const token = generation.current;
-    const controller = createReadController({
-      load: loadTasks,
-      onData: (value: Task[]) => {
+    if (!uid || !familyId) return;
+    let live = false;
+    let active = true;
+    void readTaskCache(uid).then((cached) => {
+      if (!active || live || !cached) return;
+      setTasks(cached);
+      setLoading(false);
+    });
+    const subscription = subscribeTasks(
+      uid,
+      familyId,
+      () => namesRef.current,
+      (value) => {
+        live = true;
         setTasks(value);
         setLoaded(true);
+        setLoading(false);
+        setError("");
+        writeTaskCache(uid, value);
       },
-      onError: (error) => setError(error ? message(error) : ""),
-      onSettled: () => setLoading(false),
-      isCurrent: () => token === generation.current,
-    });
-    feed.current = controller;
-    void controller.refresh().catch(() => {});
+      (failure) => {
+        setError(message(failure));
+        setLoading(false);
+      },
+    );
+    feed.current = subscription;
     return () => {
-      controller.close();
-      if (feed.current === controller) feed.current = null;
+      active = false;
+      subscription.stop();
+      if (feed.current === subscription) feed.current = null;
     };
-  }, [profile?.uid, profile?.familyId, generation]);
-  usePolling(
-    () => void feed.current?.refresh().catch(() => {}),
-    60000,
-    !!profile?.familyId,
-  );
-  const refresh = async () => {
-    await feed.current?.refresh(true);
+  }, [uid, familyId, attempt]);
+  // Nomes chegam da lista de membros; reaplica sem reconsultar.
+  useEffect(() => feed.current?.reemit(), [names]);
+  // Executa já a ação adiada (ex.: outra ação começou ou a tela vai sumir).
+  const commit = async () => {
+    const current = pendingRun.current;
+    if (!current) return;
+    clearTimeout(current.timer);
+    pendingRun.current = null;
+    setPending(null);
+    try {
+      await current.run();
+    } catch (failure) {
+      onActionError(failure);
+    }
   };
-  const retry = async () => {
-    setLoading(!loaded);
-    await refresh();
+  useEffect(() => () => void commit(), [uid]);
+  const defer = async (task: Task, label: string, run: () => Promise<void>) => {
+    await commit();
+    setPending({ taskId: task.id, label });
+    pendingRun.current = { run, timer: setTimeout(() => void commit(), undoMs) };
   };
+  const undo = () => {
+    if (pendingRun.current) clearTimeout(pendingRun.current.timer);
+    pendingRun.current = null;
+    setPending(null);
+  };
+  // Em tempo real não há o que buscar; mantém a assinatura para "puxar para atualizar".
+  const refresh = async () => {};
+  const retry = async () => setAttempt((n) => n + 1);
+  // Concluir e excluir esperam alguns segundos (dá para desfazer); restaurar é imediato.
   const toggle = async (task: Task) => {
-    await toggleTask(task);
-    await refresh();
+    if (task.completed || task.skipped) return toggleTask(task);
+    await defer(task, "Tarefa concluída", () => toggleTask(task));
   };
-  // Marca na hora (otimista); se o servidor recusar, a recarga desfaz.
+  // Marca na hora (otimista); se o servidor recusar, o tempo real desfaz.
   const toggleItem = async (task: Task, subtaskId: string) => {
     setTasks((current) =>
       current.map((item) =>
@@ -77,29 +123,37 @@ export function useTaskController(
             },
       ),
     );
-    try {
-      await toggleSubtask(task, subtaskId);
-    } finally {
-      await refresh();
-    }
+    await toggleSubtask(task, subtaskId);
   };
   const skip = async (task: Task) => {
+    await commit();
     await advanceTask(task.id, "skip");
-    await refresh();
   };
   const remove = async (task: Task) => {
     if (!profile) throw new Error("Entre na sua conta.");
-    await deleteTask(profile, task);
-    await refresh();
+    await defer(task, "Tarefa excluída", () => deleteTask(profile, task));
   };
+  // A tarefa com ação pendente some da lista enquanto dá para desfazer.
+  const shown = useMemo(
+    () => (pending ? tasks.filter((task) => task.id !== pending.taskId) : tasks),
+    [tasks, pending],
+  );
+  const visible = useMemo(
+    () => searchTasks(filterTasks(shown, filter, undefined, undefined, uid), search),
+    [shown, filter, search, uid],
+  );
   return {
-    tasks,
+    tasks: shown,
     loading,
     loaded,
     error,
     filter,
     setFilter,
-    visible: filterTasks(tasks, filter),
+    search,
+    setSearch,
+    visible,
+    pending,
+    undo,
     refresh,
     retry,
     toggle,

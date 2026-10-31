@@ -34,15 +34,8 @@ export function TaskCardList({
               if (confirmed) await skip(task);
             })
           }
-          onDelete={(task) =>
-            void run(async () => {
-              const confirmed = await confirmAction(
-                "Excluir tarefa",
-                `Excluir "${task.title}" para toda a família? Esta ação não pode ser desfeita.`,
-              );
-              if (confirmed) await remove(task);
-            })
-          }
+          // Sem confirmação: dá para desfazer por alguns segundos.
+          onDelete={(task) => void run(() => remove(task))}
         />
       ))}
     </>

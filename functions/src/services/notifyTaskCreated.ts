@@ -1,6 +1,7 @@
 import { db } from "../config/firebase";
 import { displayNameOf } from "./displayNameOf";
 import { familyMemberIds } from "./familyMemberIds";
+import { notifyTaskAssigned } from "./notifyTaskAssigned";
 import { notifyUsers } from "./pushNotifications";
 const shortDate = (date: unknown) =>
   typeof date === "string" ? date.split("-").reverse().slice(0, 2).join("/") : "";
@@ -16,8 +17,10 @@ export async function notifyTaskCreated(taskId: string, task: Record<string, unk
   ]);
   const name = author?.exists ? displayNameOf(author.data()) : "Alguém";
   const when = [shortDate(task.dueDate), task.dueTime].filter(Boolean).join(" ");
+  // O responsável recebe o aviso próprio, não o geral.
+  await notifyTaskAssigned(taskId, task, authorId);
   await notifyUsers(
-    members.filter((uid) => uid !== authorId),
+    members.filter((uid) => uid !== authorId && uid !== task.assignedTo),
     {
       title: "Nova tarefa na família",
       body: `${name} criou "${String(task.title ?? "")}"${when ? ` para ${when}` : ""}.`,

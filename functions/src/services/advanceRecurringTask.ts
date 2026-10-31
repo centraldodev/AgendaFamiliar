@@ -1,7 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import { db } from "../config/firebase";
-import { normalizeRole } from "../shared/roles";
+import { actorOf, canComplete, canRead } from "../shared/taskPermissions";
 import { localParts } from "./dueReminder";
 import { nextOccurrence } from "../shared/nextOccurrence";
 type Raw = Record<string, unknown>;
@@ -24,13 +24,10 @@ export async function advanceRecurringTask(
   return db.runTransaction(async (tx) => {
     const [user, snap] = await Promise.all([tx.get(userRef), tx.get(taskRef)]);
     const task = snap.data();
-    const familyId = user.data()?.familyId;
-    if (!task || !familyId || task.familyId !== familyId)
+    const actor = actorOf(uid, user.data());
+    if (!task || !actor || !canRead(task, actor))
       throw new HttpsError("not-found", "Tarefa não encontrada.");
-    const owner = task.createdBy === uid;
-    const admin = normalizeRole(user.data()?.role) === "admin";
-    // Mesma permissão de concluir: o criador, ou admin nas compartilhadas.
-    if (!owner && !(admin && task.isPrivate !== true))
+    if (!canComplete(task, actor))
       throw new HttpsError("permission-denied", "Sua conta não tem permissão para esta ação.");
     if (task.completed === true || task.skipped === true)
       throw new HttpsError("failed-precondition", "Esta tarefa já foi encerrada.");

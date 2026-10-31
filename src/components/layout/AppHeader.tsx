@@ -25,9 +25,13 @@ export function AppHeader({
     <View style={s.header}>
       <View style={s.brandRow}>
         <Image source={require("../../../assets/logo.png")} style={s.logo} accessibilityIgnoresInvertColors />
-        <View>
-          <Text style={s.eyebrow}>UM DIA DE CADA VEZ</Text>
-          <Text style={s.brand}>Agenda Familiar</Text>
+        <View style={{ flexShrink: 1 }}>
+          <Text style={s.eyebrow} numberOfLines={1}>
+            UM DIA DE CADA VEZ
+          </Text>
+          <Text style={s.brand} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            Agenda Familiar
+          </Text>
         </View>
       </View>
       <View style={s.headerActions}>

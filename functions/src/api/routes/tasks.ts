@@ -1,6 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "../../config/firebase";
-import { isExpiredCompletedTask } from "../../middlewares/isExpiredCompletedTask";
+import { isExpiredCompletedTask } from "../../shared/isExpiredCompletedTask";
 import { advanceRecurringTask } from "../../services/advanceRecurringTask";
 import { resolveAuthorNames, serializeTask } from "../../services/serializeTask";
 import { toggleSubtask } from "../../services/toggleSubtask";
@@ -36,6 +36,15 @@ async function respondTask(ctx: RouteContext, id: string, status = 200) {
   const task = snap.data() ?? {};
   const names = await resolveAuthorNames([task]);
   ctx.res.status(status).json(serializeTask(id, task, names));
+}
+// O responsável precisa ser da mesma família.
+async function assertAssignee(assignedTo: string | null, actor: Actor) {
+  if (!assignedTo) return;
+  const member = (await db.doc(`users/${assignedTo}`).get()).data();
+  if (member?.familyId !== actor.familyId)
+    throw new ApiError(422, "validation-failed", "Confira os campos da tarefa.", [
+      { field: "assignedTo", message: "O responsável precisa ser da família." },
+    ]);
 }
 const isDate = (value: string | undefined) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value);
 export function taskRoutes(router: Router) {
@@ -74,6 +83,7 @@ export function taskRoutes(router: Router) {
     const data = validateTaskBody(ctx.body);
     if (data.isPrivate && !canCreatePrivate(actor))
       throw forbidden("Somente administradores criam tarefas privadas.");
+    await assertAssignee(data.assignedTo, actor);
     const ref = await db.collection("tasks").add({
       ...data,
       subtasks: data.subtasks.map((item) => ({ ...item, completed: false })),
@@ -96,6 +106,7 @@ export function taskRoutes(router: Router) {
     // Igual ao firestore.rules: nunca torna privada a tarefa de outra pessoa.
     if (data.isPrivate && !owner && task.isPrivate !== true)
       throw forbidden("Só quem criou a tarefa pode torná-la privada.");
+    await assertAssignee(data.assignedTo, actor);
     await ref.update({ ...data, lastModifiedBy: actor.uid, updatedAt: FieldValue.serverTimestamp() });
     await respondTask(ctx, ref.id);
   });

@@ -3,6 +3,6 @@ import type { Subtask } from "./Subtask";
 import type { Task } from "./Task";
 export type TaskInput = Pick<
   Task,
-  "title" | "description" | "dueDate" | "dueTime" | "category" | "isPrivate"
+  "title" | "description" | "dueDate" | "dueTime" | "category" | "isPrivate" | "assignedTo"
 > &
   RecurrenceRule & { subtasks: Subtask[] };

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { message } from "../utils/message";
 import type { AgendaTab } from "../models/Navigation";
 import { useAsyncActionController } from "./useAsyncActionController";
 import { useBackNavigationController } from "./useBackNavigationController";
@@ -14,15 +15,28 @@ export function useAgendaController() {
   const actions = useAsyncActionController();
   const session = useSessionController();
   const [tab, setTab] = useState<AgendaTab>("tasks");
-  const tasks = useTaskController(session.profile, session.generation);
-  const categories = useCategoryController(session.profile);
-  const authentication = useAuthController(actions.setNotice);
-  const familySetup = useFamilyController(session, actions.setNotice);
   const familyManagement = useFamilyManagementController(
     session,
     tab === "settings",
     actions.setNotice,
   );
+  // Perfis são privados: os nomes de autor e responsável vêm da lista de membros.
+  const memberNames = useMemo(
+    () =>
+      new Map(
+        (familyManagement.overview?.members ?? []).map((member) => [
+          member.uid,
+          member.displayName || member.email || "Membro",
+        ]),
+      ),
+    [familyManagement.overview?.members],
+  );
+  const tasks = useTaskController(session.profile, memberNames, (error) =>
+    actions.setError(message(error)),
+  );
+  const categories = useCategoryController(session.profile);
+  const authentication = useAuthController(actions.setNotice);
+  const familySetup = useFamilyController(session, actions.setNotice);
   const notifications = useNotificationController(session.user, {
     onReceived: () => {
       void tasks.refresh().catch(() => {});

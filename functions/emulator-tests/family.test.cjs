@@ -246,5 +246,6 @@ test("recorrente: concluir e pular arquivam a atual e criam a próxima com o mes
   await db.doc("tasks/once").set({ ...base, recurrence: "none" });
   await rejects(advanceRecurringTask("alice", "once", "complete"), "failed-precondition");
   await db.doc("tasks/priv").set({ ...base, isPrivate: true });
-  await rejects(advanceRecurringTask("admin", "priv", "complete"), "permission-denied");
+  // Privada de outra pessoa nem aparece: "não encontrada", sem revelar que existe.
+  await rejects(advanceRecurringTask("admin", "priv", "complete"), "not-found");
 });

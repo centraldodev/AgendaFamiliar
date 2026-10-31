@@ -91,6 +91,14 @@ export function TaskCard({
                 {describeRecurrence(task) ? ` · ${describeRecurrence(task)}` : ""}
               </Text>
             </View>
+            {!!task.assignedTo && (
+              <View style={[s.inlineAction, { gap: 5 }]}>
+                <Icon name="person-outline" size={14} color={colors.accent} />
+                <Text style={[s.tag, { color: colors.accent }]}>
+                  {task.assignedTo === profile.uid ? "Com você" : `Com ${task.assignedToName ?? "um membro"}`}
+                </Text>
+              </View>
+            )}
             <Text
               style={[
                 s.taskTitle,

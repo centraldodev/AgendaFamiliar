@@ -2,6 +2,7 @@ import { Pressable, Text, View } from "react-native";
 import { Button } from "../components/ui/Button";
 import { Field } from "../components/ui/Field";
 import type { AgendaController } from "../controllers/AgendaController";
+import { loginWithGoogle } from "../services/auth/loginWithGoogle";
 import { useTheme } from "../styles/theme";
 export function AuthView({ controller }: { controller: AgendaController }) {
   const { s } = useTheme();
@@ -53,6 +54,13 @@ export function AuthView({ controller }: { controller: AgendaController }) {
         title={busy ? "Aguarde…" : register ? "Criar minha conta" : "Entrar"}
         disabled={busy}
         onPress={() => void run(submit)}
+      />
+      <Button
+        title="Entrar com Google"
+        variant="accentSoft"
+        icon="logo-google"
+        disabled={busy}
+        onPress={() => void run(loginWithGoogle)}
       />
       <Button
         title={register ? "Já tenho uma conta" : "Criar uma conta"}

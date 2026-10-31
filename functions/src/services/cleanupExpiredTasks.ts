@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
-import { completedRetentionMs } from "../middlewares/isExpiredCompletedTask";
+import { completedRetentionMs } from "../shared/isExpiredCompletedTask";
 // Concluídas ou puladas há mais de uma semana são apagadas uma vez por dia
 // (antes era a cada listagem, o que fazia toda leitura gravar no banco).
 export async function cleanupExpiredTasks(now: number = Date.now()) {

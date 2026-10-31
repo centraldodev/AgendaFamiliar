@@ -1,2 +1,2 @@
 export type AgendaTab = "tasks" | "calendar" | "settings";
-export type TaskFilter = "today" | "overdue" | "upcoming" | "completed" | "private" | "all";
+export type TaskFilter = "today" | "mine" | "overdue" | "upcoming" | "completed" | "private";

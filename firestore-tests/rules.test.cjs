@@ -85,3 +85,14 @@ test('app não reescreve subtarefas (nem só o "completed"): é papel do backend
   await assertFails(updateDoc(doc(db(),'tasks','subs'),{subtasks:[{id:'1',title:'A',completed:true,dueDate:null,...change}],...meta()}));
  await assertFails(updateDoc(doc(db(),'tasks','subs'),{subtasks:[{id:'1',title:'A',completed:true,dueDate:null}],...meta()}));
 });
+test('responsável: membro da família conclui; não vale de fora nem em privada',async()=>{
+ await assertSucceeds(setDoc(doc(db(),'tasks','assigned'),task({createdAt:serverTimestamp(),updatedAt:serverTimestamp(),assignedTo:'bob'})));
+ await assertFails(setDoc(doc(db(),'tasks','assignedOut'),task({createdAt:serverTimestamp(),updatedAt:serverTimestamp(),assignedTo:'outsider'})));
+ await assertFails(setDoc(doc(db('admin'),'tasks','assignedPriv'),task({createdAt:serverTimestamp(),updatedAt:serverTimestamp(),isPrivate:true,createdBy:'admin',lastModifiedBy:'admin',assignedTo:'admin'})));
+ await assertSucceeds(updateDoc(doc(db('bob'),'tasks','assigned'),{completed:true,...meta('bob')}));
+ await assertFails(updateDoc(doc(db('bob'),'tasks','assigned'),{assignedTo:'bob',title:'x',...meta('bob')}));
+});
+test('perfil: preferência de lembrete só com valores da lista',async()=>{
+ for(const v of [-1,0,30,1440])await assertSucceeds(updateDoc(doc(db(),'users','alice'),{reminderMinutes:v}));
+ for(const v of [5,'30',99999])await assertFails(updateDoc(doc(db(),'users','alice'),{reminderMinutes:v}));
+});

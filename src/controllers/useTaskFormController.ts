@@ -18,6 +18,7 @@ export function useTaskFormController(
   const [time, setTime] = useState("");
   const [category, setCategory] = useState("home");
   const [privateTask, setPrivate] = useState(false);
+  const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [recurrenceRule, setRecurrenceRule] = useState<RecurrenceRule>({
     recurrence: "none",
@@ -31,6 +32,7 @@ export function useTaskFormController(
     setTime(task?.dueTime ?? "");
     setCategory(task?.category ?? "home");
     setPrivate(task?.isPrivate ?? false);
+    setAssignedTo(task?.assignedTo ?? null);
     setSubtasks(task?.subtasks ?? []);
     setRecurrenceRule({
       recurrence: task?.recurrence ?? "none",
@@ -63,6 +65,8 @@ export function useTaskFormController(
         dueTime: time || null,
         category,
         isPrivate: privateTask,
+        // Privada não tem responsável.
+        assignedTo: privateTask ? null : assignedTo,
         subtasks,
         ...recurrenceRule,
       },
@@ -87,6 +91,8 @@ export function useTaskFormController(
     setCategory,
     privateTask,
     setPrivate,
+    assignedTo,
+    setAssignedTo,
     subtasks,
     addSubtask,
     updateSubtask,
