@@ -26,8 +26,10 @@ function json(res: ApiResponse, status: number, body: unknown) {
 }
 function showLogin(req: Request, res: ApiResponse) {
   const q = req.query;
-  if (text(q.client_id) !== alexaClientId.value() || !isAllowedRedirect(q.redirect_uri))
+  if (text(q.client_id) !== alexaClientId.value() || !isAllowedRedirect(q.redirect_uri)) {
+    console.warn("oauth authorize rejeitado", { clientId: text(q.client_id), redirectUri: text(q.redirect_uri) });
     return html(res, 400, errorPage("Pedido de vinculação inválido. Comece de novo pelo app Alexa."));
+  }
   if (text(q.response_type) !== "code")
     return html(res, 400, errorPage("Tipo de resposta não suportado."));
   html(res, 200, loginPage({ clientId: text(q.client_id), redirectUri: q.redirect_uri, state: text(q.state) }));

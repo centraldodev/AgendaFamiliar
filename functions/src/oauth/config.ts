@@ -8,7 +8,7 @@ export const codeTtlMs = 5 * 60 * 1000;
 export const accessTtlSeconds = 60 * 60;
 // Só devolve o código para os endereços de vinculação da própria Amazon.
 const redirectPattern =
-  /^https:\/\/(pitangui\.amazon\.com|layla\.amazon\.com|alexa\.amazon\.co\.jp)\/api\/skill\/link\/[A-Za-z0-9]+$/;
+  /^https:\/\/([a-z0-9-]+\.)*amazon\.(com|co\.jp|co\.uk|de|fr|it|es|ca|in|com\.br|com\.mx|com\.au)\/api\/skill\/link\/[A-Za-z0-9]+\/?$/;
 export const isAllowedRedirect = (uri: unknown): uri is string =>
   typeof uri === "string" && redirectPattern.test(uri);
 const sameText = (a: string, b: string) => {
