@@ -11,6 +11,7 @@ const { approveJoinRequest } = require("../lib/services/approveJoinRequest");
 const { rejectJoinRequest } = require("../lib/services/rejectJoinRequest");
 const { changeMemberRole } = require("../lib/services/changeMemberRole");
 const { removeFamilyMember } = require("../lib/services/removeFamilyMember");
+const { leaveFamily } = require("../lib/services/leaveFamily");
 const { loadFamilyOverview } = require("../lib/services/loadFamilyOverview");
 const { registerPushToken } = require("../lib/services/registerPushToken");
 const { advanceRecurringTask } = require("../lib/services/advanceRecurringTask");
@@ -248,4 +249,33 @@ test("recorrente: concluir e pular arquivam a atual e criam a próxima com o mes
   await db.doc("tasks/priv").set({ ...base, isPrivate: true });
   // Privada de outra pessoa nem aparece: "não encontrada", sem revelar que existe.
   await rejects(advanceRecurringTask("admin", "priv", "complete"), "not-found");
+});
+
+test("sair do grupo: perfil fica sem grupo, privadas somem e compartilhadas ficam", async () => {
+  await db.doc("tasks/priv").set({ familyId: "fa", createdBy: "alice", isPrivate: true, title: "p" });
+  await db.doc("tasks/pub").set({ familyId: "fa", createdBy: "alice", isPrivate: false, assignedTo: "alice", title: "c" });
+  await leaveFamily("alice");
+  const profile = (await db.doc("users/alice").get()).data();
+  assert.equal(profile.familyId, undefined);
+  assert.equal(profile.role, undefined);
+  assert.equal((await db.doc("tasks/priv").get()).exists, false);
+  assert.equal((await db.doc("tasks/pub").get()).data().assignedTo, null);
+  assert.ok((await history("fa")).some((e) => e.type === "member_left" && e.actorId === "alice"));
+  // Sem grupo, pode criar um novo.
+  await createFamily("alice", identity("alice"), "Nova");
+  assert.equal((await db.doc("users/alice").get()).data().role, "admin");
+});
+
+test("sair do grupo: único admin com outros membros precisa promover alguém", async () => {
+  await db.doc("users/admin2").update({ role: "user" });
+  await rejects(leaveFamily("admin"), "failed-precondition");
+  assert.equal((await db.doc("users/admin").get()).data().familyId, "fa");
+});
+
+test("sair do grupo: último membro apaga o grupo e as tarefas", async () => {
+  await db.doc("tasks/t1").set({ familyId: "fb", createdBy: "boss", isPrivate: false, title: "x" });
+  await leaveFamily("boss");
+  assert.equal((await db.doc("families/fb").get()).exists, false);
+  assert.equal((await db.doc("tasks/t1").get()).exists, false);
+  await rejects(leaveFamily("boss"), "failed-precondition");
 });

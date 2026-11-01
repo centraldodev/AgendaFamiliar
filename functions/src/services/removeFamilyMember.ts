@@ -9,7 +9,7 @@ export async function removeFamilyMember(adminUid: string, targetUid: string) {
   if (adminUid === targetUid)
     throw new HttpsError(
       "invalid-argument",
-      "Para sair do grupo, entre em outro com um código de convite.",
+      "Para sair do grupo, use \"Sair do grupo\" nas Configurações.",
     );
   const adminRef = db.doc(`users/${adminUid}`);
   const targetRef = db.doc(`users/${targetUid}`);

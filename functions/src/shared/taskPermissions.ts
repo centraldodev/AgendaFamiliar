@@ -15,9 +15,10 @@ export const ownerOf = (t: Raw) => t.createdBy as string | undefined;
 const isAdmin = (a: Actor) => a.role === "admin";
 export const canRead = (t: Raw, a: Actor) =>
   t.familyId === a.familyId && (t.isPrivate !== true || ownerOf(t) === a.uid);
-/** Concluir, pular e marcar subtarefas: quem criou, o responsável, ou admin nas compartilhadas. */
+/** Concluir, pular e marcar subtarefas: qualquer membro nas compartilhadas; nas privadas, só quem criou.
+ *  A família é checada antes (canRead / loadTask). */
 export const canComplete = (t: Raw, a: Actor) =>
-  ownerOf(t) === a.uid || t.assignedTo === a.uid || (t.isPrivate !== true && isAdmin(a));
+  t.isPrivate !== true || ownerOf(t) === a.uid;
 /** Editar detalhes e excluir. */
 export const canEdit = (t: Raw, a: Actor) =>
   isAdmin(a) && (ownerOf(t) === a.uid || t.isPrivate !== true);

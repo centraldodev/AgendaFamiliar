@@ -17,9 +17,10 @@ test('somente role "admin" é administrador; papéis antigos valem como usuário
  assert.equal(isAdmin(admin),true);
  for(const profile of [user,legacy,{uid:'x',role:'parent'},{uid:'x'},null,undefined])assert.equal(isAdmin(profile),false);
 });
-test('usuário só conclui as próprias tarefas e nunca edita, exclui ou cria privadas',()=>{
+test('usuário conclui tarefas compartilhadas de qualquer um e nunca edita, exclui ou cria privadas',()=>{
  assert.equal(canCompleteTask(task(),user),true);
- assert.equal(canCompleteTask(task({createdBy:'bob'}),user),false);
+ assert.equal(canCompleteTask(task({createdBy:'bob'}),user),true);
+ assert.equal(canCompleteTask(task({createdBy:'bob',isPrivate:true}),user),false);
  for(const profile of [user,legacy]){
   assert.equal(canEditTask(task({createdBy:profile.uid}),profile),false);
   assert.equal(canDeleteTask(task({createdBy:profile.uid}),profile),false);

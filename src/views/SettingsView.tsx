@@ -13,6 +13,7 @@ import type { AgendaController } from "../controllers/AgendaController";
 import { isAdmin } from "../middlewares/isAdmin";
 import { deleteAccount } from "../services/auth/deleteAccount";
 import { logout } from "../services/auth/logout";
+import { leaveFamily } from "../services/families/leaveFamily";
 import { saveReminderMinutes } from "../services/settings/saveReminderMinutes";
 import { Icon } from "../components/ui/Icon";
 import { useTheme } from "../styles/theme";
@@ -83,6 +84,28 @@ export function SettingsView({ controller }: { controller: AgendaController }) {
         onCancel={() => void run(manage.cancelRequest)}
       />
       {admin && <HistoryCard entries={overview?.history ?? []} />}
+      <Button
+        title="Sair do grupo"
+        variant="ghost"
+        icon="exit-outline"
+        disabled={busy}
+        onPress={() =>
+          void run(async () => {
+            const alone = !!overview && overview.members.length <= 1;
+            const confirmed = await confirmAction(
+              "Sair do grupo",
+              alone
+                ? `Você é o único membro de ${family.name}. Ao sair, o grupo e todas as tarefas dele são apagados. Depois você pode criar um grupo novo ou entrar em outro.`
+                : `Suas tarefas privadas de ${family.name} serão apagadas e você deixa de ser responsável pelas compartilhadas. Depois você pode criar um grupo novo ou entrar em outro.`,
+              "Sair do grupo",
+            );
+            if (!confirmed) return;
+            await leaveFamily();
+            setTab("tasks");
+            await controller.session.refreshQuietly();
+          })
+        }
+      />
       <AppearanceCard />
       <ReminderCard
         value={profile.reminderMinutes ?? 0}

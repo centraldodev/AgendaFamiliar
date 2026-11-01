@@ -47,7 +47,6 @@ service cloud.firestore {
         || (data.assignedTo is string && data.isPrivate == false
           && get(/databases/$(database)/documents/users/$(data.assignedTo)).data.get('familyId', null) == data.familyId);
     }
-    function taskAssignee(data) { return signedIn() && data.get('assignedTo', null) == request.auth.uid; }
     function writeMetadata(data) {
       return data.lastModifiedBy == request.auth.uid && data.updatedAt == request.time;
     }
@@ -110,11 +109,10 @@ service cloud.firestore {
       allow update: if member(resource.data.familyId)
         && writeMetadata(request.resource.data)
         && (
-          // Concluir tarefa pendente: o criador ou o responsável; admin nas compartilhadas.
+          // Concluir tarefa pendente: qualquer membro nas compartilhadas; nas privadas, só quem criou.
           // Subtarefas são marcadas pelo backend (agendaTaskOccurrence, action "toggleSubtask").
           // Recorrentes são concluídas pelo backend, que arquiva e cria a próxima.
-          ((taskOwner(resource.data) || taskAssignee(resource.data)
-              || (resource.data.isPrivate == false && admin(resource.data.familyId)))
+          ((taskOwner(resource.data) || resource.data.isPrivate == false)
             && resource.data.get('completed', false) == false
             && resource.data.get('skipped', false) == false
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed', 'lastModifiedBy', 'updatedAt'])

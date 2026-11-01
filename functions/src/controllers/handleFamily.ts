@@ -2,11 +2,13 @@ import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import { requireAuth } from "../middlewares/requireAuth";
 import { cancelJoinRequest } from "../services/cancelJoinRequest";
 import { createFamily } from "../services/createFamily";
+import { leaveFamily } from "../services/leaveFamily";
 import { requestJoinFamily } from "../services/requestJoinFamily";
 export async function handleFamily(request: CallableRequest) {
   const uid = requireAuth(request);
   const { action, value } = request.data ?? {};
   if (action === "cancel") return cancelJoinRequest(uid);
+  if (action === "leave") return leaveFamily(uid);
   if (
     !["create", "join"].includes(action) ||
     typeof value !== "string" ||

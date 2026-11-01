@@ -22,9 +22,9 @@ test('filtros separam hoje (só a data de hoje), futuras, concluídas e privadas
  assert.deepEqual(ids('private'),['c']);
  assert.equal(tasks.length,5);assert.equal(tasks[0].id,'a');
 });
-test('administrador só conclui tarefas alheias compartilhadas',()=>{
+test('qualquer membro conclui tarefas alheias compartilhadas; privadas só quem criou',()=>{
  const task={createdBy:'alice',isPrivate:false};
- assert.equal(canCompleteTask(task,{uid:'bob',role:'dependent'}),false);
+ assert.equal(canCompleteTask(task,{uid:'bob',role:'dependent'}),true);
  assert.equal(canCompleteTask(task,{uid:'bob',role:'admin'}),true);
  assert.equal(canCompleteTask({...task,isPrivate:true},{uid:'bob',role:'admin'}),false);
  assert.equal(canCompleteTask({...task,isPrivate:true},{uid:'alice',role:'dependent'}),true);
