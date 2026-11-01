@@ -113,7 +113,7 @@ export function TaskCard({
             {task.skipped && <Text style={s.skippedText}>Pulada · não concluída</Text>}
           </View>
           {canSkip && (
-            <Pressable disabled={busy} onPress={() => onSkip(task)} hitSlop={8}>
+            <Pressable accessibilityRole="button" disabled={busy} onPress={() => onSkip(task)} hitSlop={8}>
               <View style={s.inlineAction}>
                 <Icon name="play-skip-forward-outline" size={16} />
                 <Text style={[s.link, { paddingVertical: 0 }]}>Pular</Text>

@@ -69,7 +69,7 @@ export function AuthView({ controller }: { controller: AgendaController }) {
         onPress={() => setRegister(!register)}
       />
       {!register && (
-        <Pressable onPress={() => void run(recoverPassword)}>
+        <Pressable accessibilityRole="button" onPress={() => void run(recoverPassword)}>
           <Text style={s.link}>Esqueci minha senha</Text>
         </Pressable>
       )}

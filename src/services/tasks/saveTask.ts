@@ -13,6 +13,7 @@ import type { Profile } from "../../models/Profile";
 import type { Task } from "../../models/Task";
 import type { TaskInput } from "../../models/TaskInput";
 import { validateTaskInput } from "../../utils/validateTaskInput";
+import { latestDue } from "../../../functions/src/shared/validateTask.ts";
 export async function saveTask(
   profile: Profile,
   input: TaskInput,
@@ -43,6 +44,7 @@ export async function saveTask(
     lastModifiedBy: profile.uid,
     updatedAt: serverTimestamp(),
   };
+  Object.assign(data, latestDue(data.dueDate, data.dueTime ?? null, data.subtasks));
   if (existing) {
     requireCanEditTask(existing, profile);
     await updateDoc(doc(db, "tasks", existing.id), data);

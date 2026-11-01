@@ -92,11 +92,12 @@ export function validateTask(merged: Raw) {
         dueTime: optionalString(item.dueTime),
       });
     });
+  const due = latestDue(merged.dueDate as string, (dueTime as string) || null, subtasks);
   const data = {
     title,
     description: (description as string).trim(),
-    dueDate: merged.dueDate as string,
-    dueTime: dueTime || null,
+    dueDate: due.dueDate,
+    dueTime: due.dueTime,
     category: category as string,
     isPrivate: isPrivate as boolean,
     assignedTo: assignedTo as string | null,
@@ -107,4 +108,29 @@ export function validateTask(merged: Raw) {
     recurrenceEndDate,
   };
   return { data, errors };
+}
+
+// A tarefa principal não pode vencer antes das subtarefas: se alguma subtarefa
+// vence depois, a principal passa a usar essa data (e o horário dela, se tiver).
+type Due = { dueDate?: unknown; dueTime?: unknown };
+export function latestDue(
+  dueDate: string,
+  dueTime: string | null,
+  subtasks: readonly Due[],
+): { dueDate: string; dueTime: string | null } {
+  let date = dueDate;
+  let time = dueTime;
+  for (const item of subtasks) {
+    if (typeof item.dueDate !== "string" || !item.dueDate) continue;
+    const itemTime = typeof item.dueTime === "string" && item.dueTime ? item.dueTime : null;
+    // Datas AAAA-MM-DD e horários HH:MM comparam certo como texto. Sem horário = fim do dia.
+    const later =
+      item.dueDate > date ||
+      (item.dueDate === date && time !== null && (itemTime === null || itemTime > time));
+    if (later) {
+      date = item.dueDate;
+      time = itemTime;
+    }
+  }
+  return { dueDate: date, dueTime: time };
 }

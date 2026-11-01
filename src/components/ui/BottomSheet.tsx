@@ -38,7 +38,7 @@ export function BottomSheet({
         style={s.sheetBackdrop}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Pressable
+        <Pressable accessibilityRole="button"
           style={{ flex: 1 }}
           accessibilityLabel="Fechar"
           onPress={onClose}
@@ -47,7 +47,7 @@ export function BottomSheet({
           <View style={s.sheetHandle} />
           <View style={s.row}>
             <Text style={s.heading}>{title}</Text>
-            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Fechar">
+            <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} accessibilityLabel="Fechar">
               <Text style={s.accentLink}>Fechar</Text>
             </Pressable>
           </View>

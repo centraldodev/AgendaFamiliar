@@ -99,7 +99,7 @@ export function OptionPicker({
                 onSubmitEditing={() => void create()}
               />
             </View>
-            <Pressable
+            <Pressable accessibilityRole="button"
               disabled={!newLabel.trim() || creating}
               onPress={() => void create()}
               hitSlop={8}

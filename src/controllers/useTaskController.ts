@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
 import type { TaskFilter } from "../models/Navigation";
 import type { Profile } from "../models/Profile";
 import type { Task } from "../models/Task";
@@ -90,7 +91,16 @@ export function useTaskController(
       onActionError(failure);
     }
   };
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
   useEffect(() => () => void commit(), [uid]);
+  // O app pode ser fechado em segundo plano: grava antes que a ação se perca.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") void commitRef.current();
+    });
+    return () => subscription.remove();
+  }, []);
   const defer = async (task: Task, label: string, run: () => Promise<void>) => {
     await commit();
     setPending({ taskId: task.id, label });
@@ -109,9 +119,9 @@ export function useTaskController(
     if (task.completed || task.skipped) return toggleTask(task);
     await defer(task, "Tarefa concluída", () => toggleTask(task));
   };
-  // Marca na hora (otimista); se o servidor recusar, o tempo real desfaz.
+  // Marca na hora (otimista); se o servidor recusar, desmarca de volta.
   const toggleItem = async (task: Task, subtaskId: string) => {
-    setTasks((current) =>
+    const flip = () => setTasks((current) =>
       current.map((item) =>
         item.id !== task.id
           ? item
@@ -123,7 +133,13 @@ export function useTaskController(
             },
       ),
     );
-    await toggleSubtask(task, subtaskId);
+    flip();
+    try {
+      await toggleSubtask(task, subtaskId);
+    } catch (failure) {
+      flip();
+      throw failure;
+    }
   };
   const skip = async (task: Task) => {
     await commit();

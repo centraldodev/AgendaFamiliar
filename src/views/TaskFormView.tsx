@@ -159,7 +159,7 @@ export function TaskFormView({ controller }: { controller: AgendaController }) {
               onSubmitEditing={add}
             />
           </View>
-          <Pressable disabled={!newSubtask.trim()} onPress={add} hitSlop={8}>
+          <Pressable accessibilityRole="button" disabled={!newSubtask.trim()} onPress={add} hitSlop={8}>
             <Text style={s.link}>Adicionar</Text>
           </Pressable>
         </View>

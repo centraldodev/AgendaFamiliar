@@ -29,7 +29,7 @@ export function SubtaskEditor({
             maxLength={160}
           />
         </View>
-        <Pressable onPress={onRemove} hitSlop={8}>
+        <Pressable accessibilityRole="button" onPress={onRemove} hitSlop={8}>
           <Text style={s.dangerLink}>Remover</Text>
         </Pressable>
       </View>

@@ -62,7 +62,7 @@ export function TasksView({ controller }: { controller: AgendaController }) {
             ...(showPrivate ? ([["private", "Privadas"]] as const) : []),
           ] as const
         ).map(([key, label]) => (
-          <Pressable
+          <Pressable accessibilityRole="tab" accessibilityState={{ selected: filter === key }}
             key={key}
             style={[s.chip, filter === key && s.selectedChip]}
             onPress={() => setFilter(key)}

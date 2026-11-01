@@ -37,7 +37,7 @@ export function SettingsView({ controller }: { controller: AgendaController }) {
     <>
       <View style={s.row}>
         <Text style={s.heading}>Configurações</Text>
-        <Pressable onPress={() => setTab("tasks")} style={s.inlineAction}>
+        <Pressable accessibilityRole="button" onPress={() => setTab("tasks")} style={s.inlineAction}>
           <Icon name="chevron-back" size={18} color={colors.accent} />
           <Text style={s.accentLink}>Voltar</Text>
         </Pressable>

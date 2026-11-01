@@ -42,7 +42,7 @@ export function MembersCard({
             </Text>
             {isAdmin && (
               <View style={s.actionsRow}>
-                <Pressable
+                <Pressable accessibilityRole="button"
                   disabled={busy}
                   onPress={() => onSetRole(member, nextRole)}
                 >
@@ -53,7 +53,7 @@ export function MembersCard({
                   </Text>
                 </Pressable>
                 {!self && (
-                  <Pressable disabled={busy} onPress={() => onRemove(member)}>
+                  <Pressable accessibilityRole="button" disabled={busy} onPress={() => onRemove(member)}>
                     <Text style={s.dangerLink}>Remover do grupo</Text>
                   </Pressable>
                 )}

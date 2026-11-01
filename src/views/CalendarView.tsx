@@ -51,15 +51,15 @@ export function CalendarView({ controller }: { controller: AgendaController }) {
     <>
       <View style={s.card}>
         <View style={s.row}>
-          <Pressable accessibilityLabel="Mês anterior" onPress={() => move(-1)} hitSlop={10}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Mês anterior" onPress={() => move(-1)} hitSlop={10}>
             <Icon name="chevron-back" size={26} />
           </Pressable>
-          <Pressable onPress={goToday} accessibilityLabel="Voltar para hoje">
+          <Pressable accessibilityRole="button" onPress={goToday} accessibilityLabel="Voltar para hoje">
             <Text style={s.heading}>
               {monthNames[month.month]} {month.year}
             </Text>
           </Pressable>
-          <Pressable accessibilityLabel="Próximo mês" onPress={() => move(1)} hitSlop={10}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Próximo mês" onPress={() => move(1)} hitSlop={10}>
             <Icon name="chevron-forward" size={26} />
           </Pressable>
         </View>
@@ -169,7 +169,7 @@ function MonthHolidays({
     <View style={s.card}>
       <Text style={s.label}>Feriados de {monthNames[month].toLowerCase()}</Text>
       {list.map((h) => (
-        <Pressable key={h.date + h.name} onPress={() => onSelect(h.date)}>
+        <Pressable accessibilityRole="button" key={h.date + h.name} onPress={() => onSelect(h.date)}>
           <Text style={s.muted}>
             {formatShortDate(h.date).slice(0, 5)} · {h.name}
             {h.optional ? " (ponto facultativo)" : ""}

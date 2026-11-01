@@ -2,6 +2,14 @@ import { db } from "../config/firebase";
 import { isReminderDue, leadMinutesOf, localParts, reminderKey } from "./dueReminder";
 import { notifyUsers } from "./pushNotifications";
 type Recipient = { uid: string; lead: number };
+// Quem recebe o lembrete: privada, só quem criou; com responsável, ele e quem criou;
+// sem responsável, a família toda.
+export function reminderRecipients(task: Record<string, unknown>, members: Recipient[]) {
+  if (task.isPrivate === true) return members.filter((m) => m.uid === task.createdBy);
+  if (typeof task.assignedTo === "string" && task.assignedTo)
+    return members.filter((m) => m.uid === task.assignedTo || m.uid === task.createdBy);
+  return members;
+}
 const leadText = (lead: number) =>
   lead >= 1440 ? "amanhã" : lead >= 60 ? `em ${lead / 60} h` : `em ${lead} min`;
 // Lê o estado atual das tarefas a cada execução: excluídas, concluídas ou com a
@@ -10,8 +18,9 @@ const leadText = (lead: number) =>
 export async function notifyDueTasks(now: Date = new Date()) {
   const day = 24 * 60 * 60 * 1000;
   const dates = [-1, 0, 1].map((offset) => localParts(new Date(now.getTime() + offset * day)).date);
-  const snapshot = await db.collection("tasks").where("dueDate", "in", dates).get();
-  const pending = snapshot.docs.filter((doc) => doc.data().completed !== true && doc.data().skipped !== true);
+  // Só as pendentes: concluídas nem são lidas (roda a cada 5 minutos).
+  const snapshot = await db.collection("tasks").where("dueDate", "in", dates).where("completed", "==", false).get();
+  const pending = snapshot.docs.filter((doc) => doc.data().skipped !== true);
   const families = new Map<string, Promise<Recipient[]>>();
   const membersOf = (familyId: string) => {
     if (!families.has(familyId))
@@ -26,9 +35,7 @@ export async function notifyDueTasks(now: Date = new Date()) {
   for (const doc of pending) {
     const task = doc.data();
     if (typeof task.familyId !== "string") continue;
-    // Pública: toda a família. Privada: somente quem criou.
-    const members = await membersOf(task.familyId);
-    const recipients = task.isPrivate === true ? members.filter((m) => m.uid === task.createdBy) : members;
+    const recipients = reminderRecipients(task, await membersOf(task.familyId));
     const key = reminderKey(task);
     for (const { uid, lead } of recipients) {
       if (!isReminderDue(task, now, lead)) continue;

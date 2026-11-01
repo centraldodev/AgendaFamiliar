@@ -104,7 +104,7 @@ export function RecurrencePicker({
             {weekDayNames.map((name, day) => {
               const selected = weekDays.includes(day);
               return (
-                <Pressable
+                <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected }}
                   key={name}
                   onPress={() =>
                     setWeekDays((current) =>

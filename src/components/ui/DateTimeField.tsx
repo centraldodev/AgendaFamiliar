@@ -55,7 +55,7 @@ export function DateTimeField({
           </Text>
         </Pressable>
         {!!value && onClear && (
-          <Pressable onPress={onClear} hitSlop={8}>
+          <Pressable accessibilityRole="button" onPress={onClear} hitSlop={8}>
             <Text style={s.dangerLink}>Remover</Text>
           </Pressable>
         )}
