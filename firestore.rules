@@ -67,8 +67,10 @@ service cloud.firestore {
       // Nome e preferência de lembrete (minutos antes; -1 = desligado).
       allow update: if self(uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'reminderMinutes'])
-        && request.resource.data.displayName is string
-        && request.resource.data.displayName.size() <= 120
+        // Perfis antigos podem não ter nome: só valida o nome quando ele muda.
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['displayName'])
+          || (request.resource.data.displayName is string
+            && request.resource.data.displayName.size() <= 120))
         && request.resource.data.get('reminderMinutes', 0) in [-1, 0, 15, 30, 60, 120, 1440];
       allow delete: if false;
     }
