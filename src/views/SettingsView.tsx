@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from "react-native";
-import { ApiTokensCard } from "../components/settings/ApiTokensCard";
+import { AlexaCard } from "../components/settings/AlexaCard";
 import { AppearanceCard } from "../components/settings/AppearanceCard";
 import { DeleteAccountCard } from "../components/settings/DeleteAccountCard";
 import { ReminderCard } from "../components/settings/ReminderCard";
@@ -99,7 +99,7 @@ export function SettingsView({ controller }: { controller: AgendaController }) {
         <Text style={s.muted}>{profile.email}</Text>
         <Text style={s.muted}>{pushMessages[notifications.status]}</Text>
       </View>
-      <ApiTokensCard />
+      <AlexaCard />
       <Button
         title="Sair da conta"
         variant="danger"

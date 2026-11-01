@@ -1,6 +1,8 @@
 import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { onCall, onRequest } from "firebase-functions/v2/https";
 import { handleApi } from "./api/handleApi";
+import { handleOAuth } from "./oauth/handleOAuth";
+import { alexaClientSecret } from "./oauth/config";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { callableOptions } from "./config/callableOptions";
 import { handleFamily } from "./controllers/handleFamily";
@@ -20,6 +22,11 @@ export const agendaFamilyAdmin = onCall(callableOptions, handleFamilyAdmin);
 export const agendaPushToken = onCall(callableOptions, handlePushToken);
 export const agendaTaskOccurrence = onCall(callableOptions, handleTaskOccurrence);
 export const agendaApi = onRequest({ ...callableOptions, maxInstances: 3 }, handleApi);
+// Vinculação de conta da Alexa (OAuth 2.0). Precisa do segredo ALEXA_CLIENT_SECRET.
+export const agendaOAuth = onRequest(
+  { ...callableOptions, maxInstances: 3, secrets: [alexaClientSecret] },
+  handleOAuth,
+);
 export const agendaAccount = onCall(callableOptions, handleAccount);
 export const agendaTaskCreated = onDocumentCreated(
   { document: "tasks/{taskId}", region: callableOptions.region },

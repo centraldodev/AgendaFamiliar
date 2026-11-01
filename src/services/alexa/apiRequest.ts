@@ -1,6 +1,6 @@
 import { apiBaseUrl } from "../../config/api";
 import { requireAuthenticatedUser } from "../../middlewares/requireAuthenticatedUser";
-// Chamada à API com o login do Firebase (tokens só são geridos assim).
+// Chamada à API com o login do Firebase (a vinculação da Alexa só é gerida assim).
 export async function apiRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
   const idToken = await requireAuthenticatedUser().getIdToken();
   const response = await fetch(`${apiBaseUrl}${path}`, {

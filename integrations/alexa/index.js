@@ -1,16 +1,21 @@
 // Skill da Alexa para o Agenda Familiar (Alexa-hosted, Node.js, ask-sdk-core).
-// Conversa com a API REST (agendaApi) usando um token pessoal criado no app:
-// Configurações › Acesso pela API › Criar token. Cole o token em API_TOKEN.
-// Atenção: o token age como a sua conta; a skill fica pessoal (só a sua agenda).
+// Conversa com a API REST (agendaApi) usando a vinculação de conta (OAuth): cada pessoa
+// vincula a própria conta no app Alexa e a skill recebe o token dela em cada pedido.
+// Não há token no código: a mesma skill serve a todos, cada um com a sua agenda.
 const Alexa = require("ask-sdk-core");
 const https = require("https");
 
 const API_URL = "https://us-central1-agendafamiliarkotlin.cloudfunctions.net/agendaApi";
-const API_TOKEN = "agf_COLE_SEU_TOKEN_AQUI";
 const TIME_ZONE = "America/Sao_Paulo";
 
 // ---------- API ----------
-function api(method, path, body) {
+// Sem vinculação (ou vinculação desfeita no app): pede para vincular de novo.
+class LinkRequired extends Error {}
+const tokenOf = (handlerInput) => Alexa.getAccountLinkingAccessToken(handlerInput.requestEnvelope);
+
+function api(handlerInput, method, path, body) {
+  const token = tokenOf(handlerInput);
+  if (!token) return Promise.reject(new LinkRequired());
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : undefined;
     const req = https.request(
@@ -19,7 +24,7 @@ function api(method, path, body) {
         method,
         timeout: 7000,
         headers: {
-          Authorization: `Bearer ${API_TOKEN}`,
+          Authorization: `Bearer ${token}`,
           ...(data ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } : {}),
         },
       },
@@ -27,8 +32,12 @@ function api(method, path, body) {
         let raw = "";
         res.on("data", (chunk) => (raw += chunk));
         res.on("end", () => {
-          const json = raw ? JSON.parse(raw) : {};
-          if (res.statusCode >= 400) reject(new Error(json.detail || `Erro ${res.statusCode}`));
+          let json = {};
+          try {
+            json = raw ? JSON.parse(raw) : {};
+          } catch {}
+          if (res.statusCode === 401) reject(new LinkRequired());
+          else if (res.statusCode >= 400) reject(new Error(json.detail || `Erro ${res.statusCode}`));
           else resolve(json);
         });
       },
@@ -65,14 +74,14 @@ const slot = (handlerInput, name) => Alexa.getSlotValue(handlerInput.requestEnve
 // Datas da Alexa (AMAZON.DATE) podem vir como "2026-11-02", "2026-W45" etc.; aceita só o dia.
 const parseDate = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(value || "") ? value : null);
 
-async function openTasks(from, to) {
+async function openTasks(h, from, to) {
   const query = `?status=open${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`;
-  return (await api("GET", `/v1/tasks${query}`)).tasks;
+  return (await api(h, "GET", `/v1/tasks${query}`)).tasks;
 }
 // Acha uma tarefa pendente pelo nome falado (exato, depois parcial).
-async function findTask(spoken) {
+async function findTask(h, spoken) {
   const term = normalize(spoken);
-  const tasks = await openTasks();
+  const tasks = await openTasks(h);
   return (
     tasks.find((t) => normalize(t.title) === term) ||
     tasks.filter((t) => normalize(t.title).includes(term) || term.includes(normalize(t.title)))
@@ -83,10 +92,12 @@ async function findTask(spoken) {
 const LaunchRequestHandler = {
   canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === "LaunchRequest",
   handle: (h) =>
-    h.responseBuilder
-      .speak("Agenda Familiar aqui. Você pode perguntar o que tem para hoje, criar uma tarefa ou concluir uma tarefa.")
-      .reprompt("O que você quer fazer?")
-      .getResponse(),
+    !tokenOf(h)
+      ? linkResponse(h)
+      : h.responseBuilder
+          .speak("Agenda Familiar aqui. Você pode perguntar o que tem para hoje, criar uma tarefa ou concluir uma tarefa.")
+          .reprompt("O que você quer fazer?")
+          .getResponse(),
 };
 
 const ListTasksIntentHandler = {
@@ -95,7 +106,7 @@ const ListTasksIntentHandler = {
     Alexa.getIntentName(h.requestEnvelope) === "ListTasksIntent",
   async handle(h) {
     const date = parseDate(slot(h, "date")) || localDate();
-    const tasks = await openTasks(date, date);
+    const tasks = await openTasks(h, date, date);
     const when = spokenDate(date);
     const speech = tasks.length
       ? `Para ${when} ${tasks.length === 1 ? "tem uma tarefa" : `tem ${tasks.length} tarefas`}: ${list(tasks.slice(0, 8).map(describe))}.`
@@ -109,7 +120,7 @@ const OverdueTasksIntentHandler = {
     Alexa.getRequestType(h.requestEnvelope) === "IntentRequest" &&
     Alexa.getIntentName(h.requestEnvelope) === "OverdueTasksIntent",
   async handle(h) {
-    const tasks = await openTasks(undefined, addDays(localDate(), -1));
+    const tasks = await openTasks(h, undefined, addDays(localDate(), -1));
     const speech = tasks.length
       ? `Você tem ${tasks.length === 1 ? "uma tarefa atrasada" : `${tasks.length} tarefas atrasadas`}: ${list(tasks.slice(0, 8).map((t) => t.title))}.`
       : "Nenhuma tarefa atrasada. Muito bem!";
@@ -132,7 +143,7 @@ const CreateTaskIntentHandler = {
       category: "other",
       ...(/^\d{2}:\d{2}$/.test(time || "") ? { dueTime: time } : {}),
     };
-    const task = await api("POST", "/v1/tasks", body);
+    const task = await api(h, "POST", "/v1/tasks", body);
     return h.responseBuilder
       .speak(`Pronto, criei ${describe(task)} para ${spokenDate(task.dueDate)}.`)
       .getResponse();
@@ -146,7 +157,7 @@ const CompleteTaskIntentHandler = {
   async handle(h) {
     const title = slot(h, "title");
     if (!title) return h.responseBuilder.speak("Qual tarefa você concluiu?").reprompt("Diga o nome da tarefa.").getResponse();
-    const found = await findTask(title);
+    const found = await findTask(h, title);
     const matches = Array.isArray(found) ? found : [found];
     if (!matches.length || !matches[0])
       return h.responseBuilder.speak(`Não achei nenhuma tarefa pendente chamada ${title}.`).getResponse();
@@ -155,7 +166,7 @@ const CompleteTaskIntentHandler = {
         .speak(`Achei mais de uma: ${list(matches.slice(0, 4).map((t) => t.title))}. Diga o nome completo.`)
         .reprompt("Qual delas?")
         .getResponse();
-    const result = await api("POST", `/v1/tasks/${matches[0].id}/complete`);
+    const result = await api(h, "POST", `/v1/tasks/${matches[0].id}/complete`);
     const next = result.nextDueDate ? ` A próxima ficou para ${spokenDate(result.nextDueDate)}.` : "";
     return h.responseBuilder.speak(`Feito, ${matches[0].title} concluída.${next}`).getResponse();
   },
@@ -194,15 +205,21 @@ const SessionEndedRequestHandler = {
   handle: (h) => h.responseBuilder.getResponse(),
 };
 
-// Erros da API (token inválido, sem internet, campo errado) viram fala.
+// Mostra o cartão "Vincular conta" no app Alexa.
+function linkResponse(h) {
+  return h.responseBuilder
+    .speak("Para usar a Agenda Familiar, vincule sua conta. Mandei um cartão para o app Alexa no seu celular.")
+    .withLinkAccountCard()
+    .getResponse();
+}
+
+// Erros da API (sem vinculação, sem internet, campo errado) viram fala.
 const ErrorHandler = {
   canHandle: () => true,
   handle(h, error) {
+    if (error instanceof LinkRequired) return linkResponse(h);
     console.log("Erro:", error && error.message);
-    const speech = /token/i.test(error && error.message)
-      ? "Não consegui entrar na sua agenda. Confira o token da skill."
-      : `Não deu certo: ${(error && error.message) || "tente de novo"}.`;
-    return h.responseBuilder.speak(speech).getResponse();
+    return h.responseBuilder.speak(`Não deu certo: ${(error && error.message) || "tente de novo"}.`).getResponse();
   },
 };
 

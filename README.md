@@ -24,9 +24,10 @@ Os testes de emulador usam só o projeto fictício `demo-agenda-familiar`.
 
 ## Publicar
 
-O deploy é feito à mão (as functions ficam no codebase `agenda-simple`, região `us-central1`):
+O deploy é feito à mão (as functions ficam no codebase `agenda-simple`, região `us-central1`). Na primeira vez, defina o segredo da vinculação com a Alexa (veja [integrations/alexa/README.md](integrations/alexa/README.md)):
 
 ```sh
+firebase functions:secrets:set ALEXA_CLIENT_SECRET   # só uma vez
 firebase deploy --only functions:agenda-simple
 firebase deploy --only firestore:rules,firestore:indexes
 ```

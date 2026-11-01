@@ -96,12 +96,22 @@ functions/src/
 
 ## API REST
 
-Função `agendaApi` (`functions/src/api`), em `https://us-central1-<projeto>.cloudfunctions.net/agendaApi/v1/...`. Autenticação por `Authorization: Bearer <token>`, que pode ser o ID token do Firebase ou um token pessoal `agf_…` (guardado só como SHA-256 em `apiTokens`). Limites: 300 req/min por IP antes da autenticação e 120 req/min por usuário depois, contados em cada instância (com até 3 instâncias, o teto real é o triplo). Tokens recusados ficam 5 min em cache, sem nova leitura no banco. Os erros saem em `application/problem+json`, com `errors[]` por campo quando a resposta é 422. As permissões e a validação vêm de `functions/src/shared/`, as mesmas do app.
+Função `agendaApi` (`functions/src/api`), em `https://us-central1-<projeto>.cloudfunctions.net/agendaApi/v1/...`. Autenticação por `Authorization: Bearer <token>`, que pode ser o ID token do Firebase (app) ou o token de acesso `agf_…` de uma Alexa vinculada (vale 1 hora, guardado só como SHA-256 em `accessTokens`). Limites: 300 req/min por IP antes da autenticação e 120 req/min por usuário depois, contados em cada instância (com até 3 instâncias, o teto real é o triplo). Tokens recusados ficam 5 min em cache, sem nova leitura no banco. Os erros saem em `application/problem+json`, com `errors[]` por campo quando a resposta é 422. As permissões e a validação vêm de `functions/src/shared/`, as mesmas do app.
 
 - `GET /v1/me` e `GET /v1/family`
 - `GET /v1/tasks?from&to&status=open|done|all&category`, `POST /v1/tasks`, `GET|PATCH|DELETE /v1/tasks/:id`
 - `POST /v1/tasks/:id/complete|skip|reopen` (recorrentes criam a próxima) e `PATCH /v1/tasks/:id/subtasks/:subtaskId` com `{ "completed": bool }`
-- `GET|POST /v1/tokens` e `DELETE /v1/tokens/:id`: só com login do Firebase. O token aparece uma única vez, na resposta do `POST`.
+- `GET /v1/alexa` (está vinculada?) e `DELETE /v1/alexa` (desvincula): só com login do Firebase.
+
+## Vinculação com a Alexa (OAuth 2.0)
+
+Função `agendaOAuth` (`functions/src/oauth`), usada como *Account Linking* (Auth Code Grant) de uma skill pública: cada pessoa vincula a própria conta e a skill recebe o token dela em cada pedido.
+
+- `GET /authorize`: página de login (e-mail e senha ou Google) aberta pelo app Alexa. Só aceita o `client_id` configurado e `redirect_uri` dos endereços da Amazon (`/api/skill/link/…`).
+- `POST /authorize`: recebe o ID token de um login feito há menos de 10 min e devolve o endereço da Amazon com `code` (uso único, 5 min, em `oauthCodes`) e `state`.
+- `POST /token`: cliente autenticado por HTTP Basic. `authorization_code` cria a vinculação (`alexaLinks/{sha256(refresh)}`) e devolve `access_token` (1 h) e `refresh_token`. `refresh_token` emite outro `access_token`.
+- Desvincular no app ou excluir a conta apaga as vinculações e os tokens. A limpeza diária apaga tokens e códigos vencidos.
+- Configuração: parâmetro `ALEXA_CLIENT_ID` (padrão `agenda-familiar-alexa`) e segredo `ALEXA_CLIENT_SECRET`. Passo a passo em [integrations/alexa/README.md](integrations/alexa/README.md).
 
 ## Verificação
 

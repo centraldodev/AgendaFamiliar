@@ -4,7 +4,7 @@ import { ApiError, Router, sendProblem, type ApiResponse } from "./http";
 import { rateLimit } from "./rateLimit";
 import { accountRoutes } from "./routes/account";
 import { taskRoutes } from "./routes/tasks";
-// API REST (v1). Autentica com "Authorization: Bearer <ID token | token pessoal>".
+// API REST (v1). Autentica com "Authorization: Bearer <ID token | token da Alexa vinculada>".
 // Sem cookies, então o CORS pode ser aberto.
 const router = new Router();
 accountRoutes(router);

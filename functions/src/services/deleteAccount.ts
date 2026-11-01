@@ -1,6 +1,6 @@
 import { getAuth } from "firebase-admin/auth";
 import { db } from "../config/firebase";
-import { tokenCollection } from "../api/authenticate";
+import { unlinkAll } from "../oauth/grants";
 import { assertCanLeaveFamily } from "../middlewares/assertCanLeaveFamily";
 import { displayNameOf } from "./displayNameOf";
 import { recordHistory } from "./recordHistory";
@@ -42,7 +42,7 @@ export async function deleteAccount(uid: string) {
       await batch.commit();
     }
   }
-  await deleteAll(db.collection(tokenCollection).where("uid", "==", uid));
+  await unlinkAll(uid);
   await Promise.all([
     db.doc(`joinRequests/${uid}`).delete(),
     db.doc(`rateLimits/${uid}`).delete(),
