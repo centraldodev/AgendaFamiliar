@@ -88,6 +88,25 @@ async function findTask(h, spoken) {
   );
 }
 
+// Uma tarefa pelo nome, ou uma resposta pronta (nenhuma / mais de uma).
+async function pickTask(h, title) {
+  const found = await findTask(h, title);
+  const matches = (Array.isArray(found) ? found : [found]).filter(Boolean);
+  if (!matches.length)
+    return { response: h.responseBuilder.speak(`Não achei nenhuma tarefa pendente chamada ${title}.`).getResponse() };
+  if (matches.length > 1)
+    return {
+      response: h.responseBuilder
+        .speak(`Achei mais de uma: ${list(matches.slice(0, 4).map((t) => t.title))}. Diga o nome completo.`)
+        .reprompt("Qual delas?")
+        .getResponse(),
+    };
+  return { task: matches[0] };
+}
+const isIntent = (h, ...names) =>
+  Alexa.getRequestType(h.requestEnvelope) === "IntentRequest" && names.includes(Alexa.getIntentName(h.requestEnvelope));
+const session = (h) => h.attributesManager.getSessionAttributes();
+
 // ---------- Intents ----------
 const LaunchRequestHandler = {
   canHandle: (h) => Alexa.getRequestType(h.requestEnvelope) === "LaunchRequest",
@@ -95,7 +114,7 @@ const LaunchRequestHandler = {
     !tokenOf(h)
       ? linkResponse(h)
       : h.responseBuilder
-          .speak("Agenda Familiar aqui. Você pode perguntar o que tem para hoje, criar uma tarefa ou concluir uma tarefa.")
+          .speak("Agenda Familiar aqui. Você pode perguntar o que tem para hoje, criar, concluir, remarcar ou apagar uma tarefa.")
           .reprompt("O que você quer fazer?")
           .getResponse(),
 };
@@ -157,18 +176,70 @@ const CompleteTaskIntentHandler = {
   async handle(h) {
     const title = slot(h, "title");
     if (!title) return h.responseBuilder.speak("Qual tarefa você concluiu?").reprompt("Diga o nome da tarefa.").getResponse();
-    const found = await findTask(h, title);
-    const matches = Array.isArray(found) ? found : [found];
-    if (!matches.length || !matches[0])
-      return h.responseBuilder.speak(`Não achei nenhuma tarefa pendente chamada ${title}.`).getResponse();
-    if (matches.length > 1)
-      return h.responseBuilder
-        .speak(`Achei mais de uma: ${list(matches.slice(0, 4).map((t) => t.title))}. Diga o nome completo.`)
-        .reprompt("Qual delas?")
-        .getResponse();
-    const result = await api(h, "POST", `/v1/tasks/${matches[0].id}/complete`);
+    const { task, response } = await pickTask(h, title);
+    if (response) return response;
+    const result = await api(h, "POST", `/v1/tasks/${task.id}/complete`);
     const next = result.nextDueDate ? ` A próxima ficou para ${spokenDate(result.nextDueDate)}.` : "";
-    return h.responseBuilder.speak(`Feito, ${matches[0].title} concluída.${next}`).getResponse();
+    return h.responseBuilder.speak(`Feito, ${task.title} concluída.${next}`).getResponse();
+  },
+};
+
+// Excluir não tem volta: guarda a tarefa na sessão e pede um "sim".
+const DeleteTaskIntentHandler = {
+  canHandle: (h) => isIntent(h, "DeleteTaskIntent"),
+  async handle(h) {
+    const title = slot(h, "title");
+    if (!title) return h.responseBuilder.speak("Qual tarefa você quer apagar?").reprompt("Diga o nome da tarefa.").getResponse();
+    const { task, response } = await pickTask(h, title);
+    if (response) return response;
+    session(h).pendingDelete = { id: task.id, title: task.title };
+    return h.responseBuilder
+      .speak(`Apagar ${task.title}? Isso não pode ser desfeito. Diga sim ou não.`)
+      .reprompt(`Apagar ${task.title}? Sim ou não?`)
+      .getResponse();
+  },
+};
+
+const YesIntentHandler = {
+  canHandle: (h) => isIntent(h, "AMAZON.YesIntent") && !!session(h).pendingDelete,
+  async handle(h) {
+    const { id, title } = session(h).pendingDelete;
+    delete session(h).pendingDelete;
+    await api(h, "DELETE", `/v1/tasks/${id}`);
+    return h.responseBuilder.speak(`Pronto, apaguei ${title}.`).getResponse();
+  },
+};
+
+const NoIntentHandler = {
+  canHandle: (h) => isIntent(h, "AMAZON.NoIntent", "AMAZON.YesIntent"),
+  handle(h) {
+    const pending = session(h).pendingDelete;
+    delete session(h).pendingDelete;
+    return h.responseBuilder.speak(pending ? `Tudo bem, ${pending.title} continua na agenda.` : "Tudo bem.").getResponse();
+  },
+};
+
+// Remarcar: muda só a data e/ou a hora.
+const RescheduleTaskIntentHandler = {
+  canHandle: (h) => isIntent(h, "RescheduleTaskIntent"),
+  async handle(h) {
+    const title = slot(h, "taskName");
+    if (!title) return h.responseBuilder.speak("Qual tarefa você quer remarcar?").reprompt("Diga o nome da tarefa.").getResponse();
+    const date = parseDate(slot(h, "date"));
+    const time = slot(h, "time");
+    const body = {
+      ...(date ? { dueDate: date } : {}),
+      ...(/^\d{2}:\d{2}$/.test(time || "") ? { dueTime: time } : {}),
+    };
+    if (!Object.keys(body).length)
+      return h.responseBuilder
+        .speak(`Para quando você quer remarcar ${title}? Diga o dia ou a hora.`)
+        .reprompt("Diga, por exemplo: remarcar " + title + " para amanhã às dez.")
+        .getResponse();
+    const { task, response } = await pickTask(h, title);
+    if (response) return response;
+    const updated = await api(h, "PATCH", `/v1/tasks/${task.id}`, body);
+    return h.responseBuilder.speak(`Pronto, ${describe(updated)} ficou para ${spokenDate(updated.dueDate)}.`).getResponse();
   },
 };
 
@@ -179,7 +250,7 @@ const HelpIntentHandler = {
   handle: (h) =>
     h.responseBuilder
       .speak(
-        "Experimente: o que tenho para hoje; o que está atrasado; criar tarefa comprar pão amanhã às dez; ou concluir tarefa comprar pão.",
+        "Experimente: o que tenho para hoje; o que está atrasado; criar tarefa comprar pão amanhã às dez; concluir tarefa comprar pão; remarcar comprar pão para sexta; ou apagar tarefa comprar pão.",
       )
       .reprompt("O que você quer fazer?")
       .getResponse(),
@@ -230,6 +301,10 @@ exports.handler = Alexa.SkillBuilders.custom()
     OverdueTasksIntentHandler,
     CreateTaskIntentHandler,
     CompleteTaskIntentHandler,
+    DeleteTaskIntentHandler,
+    YesIntentHandler,
+    NoIntentHandler,
+    RescheduleTaskIntentHandler,
     HelpIntentHandler,
     CancelAndStopIntentHandler,
     FallbackIntentHandler,

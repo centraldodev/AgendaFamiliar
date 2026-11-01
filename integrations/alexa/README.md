@@ -37,6 +37,6 @@ Salve. Para o login com Google funcionar na página de vinculação, adicione `u
 ## 4. Testar
 
 1. No app Alexa do celular: **Mais › Skills › Suas skills › Desenvolvedor › Agenda Familiar › Ativar**. Entre com a conta da Agenda Familiar.
-2. No console, em **Test**, diga "abrir agenda familiar".
+2. No console, em **Test**, diga "abrir tarefas da família". O nome de invocação é `tarefas da familia`, porque a Alexa confunde "agenda familiar" com a agenda dela.
 
 No app Agenda Familiar, em **Configurações › Alexa**, aparece se a conta está vinculada e dá para desvincular.

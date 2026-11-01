@@ -44,7 +44,7 @@ export function AlexaCard() {
         <>
           <Text style={s.muted}>
             Sua conta está vinculada à Alexa{last ? ` (último uso em ${formatShortDate(last)})` : ""}. Peça: "Alexa, abrir
-            agenda familiar".
+            tarefas da família".
           </Text>
           <Button
             title="Desvincular"

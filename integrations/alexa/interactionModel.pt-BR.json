@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "agenda familiar",
+      "invocationName": "tarefas da familia",
       "intents": [
         {
           "name": "AMAZON.CancelIntent",
@@ -92,6 +92,61 @@
             "terminei {title}",
             "marcar {title} como feita",
             "já fiz {title}"
+          ]
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": []
+        },
+        {
+          "name": "DeleteTaskIntent",
+          "slots": [
+            {
+              "name": "title",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "apagar tarefa {title}",
+            "apagar a tarefa {title}",
+            "excluir tarefa {title}",
+            "excluir a tarefa {title}",
+            "remover tarefa {title}",
+            "deletar tarefa {title}"
+          ]
+        },
+        {
+          "name": "RescheduleTaskIntent",
+          "slots": [
+            {
+              "name": "taskName",
+              "type": "TASK_TITLE"
+            },
+            {
+              "name": "date",
+              "type": "AMAZON.DATE"
+            },
+            {
+              "name": "time",
+              "type": "AMAZON.TIME"
+            }
+          ],
+          "samples": [
+            "remarcar {taskName} para {date}",
+            "remarcar {taskName} para {date} às {time}",
+            "remarcar {taskName} para às {time}",
+            "mudar {taskName} para {date}",
+            "mudar {taskName} para {date} às {time}",
+            "mude {taskName} para {date}",
+            "mude {taskName} para {date} às {time}",
+            "adiar {taskName} para {date}",
+            "passar {taskName} para {date}",
+            "mudar o horário de {taskName} para {time}",
+            "remarcar a tarefa {taskName} para {date}"
           ]
         }
       ],
